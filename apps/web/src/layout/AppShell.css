@@ -1,0 +1,106 @@
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr);
+  background: #eef1f2;
+  color: #172126;
+}
+
+.app-sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 14px;
+  background: #172126;
+  color: #e9eff1;
+  border-right: 1px solid #2d3a3f;
+}
+
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 0 8px 18px;
+  border-bottom: 1px solid #344248;
+}
+
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #49b7a5;
+  color: #6bd6c4;
+  font: 700 14px/1 "IBM Plex Mono", "Microsoft YaHei", monospace;
+}
+
+.brand-block strong,
+.brand-block span {
+  display: block;
+}
+
+.brand-block strong { font-size: 14px; }
+.brand-block div > span { margin-top: 3px; color: #8fa3aa; font-size: 11px; }
+
+.app-sidebar nav {
+  display: grid;
+  gap: 4px;
+  margin-top: 20px;
+}
+
+.app-sidebar nav a {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 11px;
+  color: #aebdc2;
+  text-decoration: none;
+  border-left: 2px solid transparent;
+}
+
+.app-sidebar nav a:hover,
+.app-sidebar nav a.active {
+  color: #f6fbfc;
+  background: #223137;
+  border-left-color: #49b7a5;
+}
+
+.system-state {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: auto;
+  padding: 12px 9px;
+  border-top: 1px solid #344248;
+}
+
+.system-state strong,
+.system-state span { display: block; }
+.system-state strong { font-size: 11px; }
+.system-state div span { margin-top: 2px; color: #81959c; font-size: 10px; }
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #49b7a5;
+  box-shadow: 0 0 0 4px rgb(73 183 165 / 15%);
+}
+
+.app-main { min-width: 0; padding: 26px 30px 40px; }
+
+@media (max-width: 820px) {
+  .app-shell { display: block; }
+  .app-sidebar { position: sticky; z-index: 10; width: 100%; height: auto; padding: 10px 12px; }
+  .brand-block { min-height: 42px; padding: 0 4px 8px; }
+  .brand-mark { width: 32px; height: 32px; }
+  .app-sidebar nav { display: flex; overflow-x: auto; margin-top: 8px; padding-bottom: 4px; }
+  .app-sidebar nav a { flex: 0 0 auto; min-height: 38px; border-left: 0; border-bottom: 2px solid transparent; }
+  .app-sidebar nav a.active { border-bottom-color: #49b7a5; }
+  .system-state { display: none; }
+  .app-main { padding: 18px 14px 30px; }
+}

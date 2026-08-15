@@ -1,0 +1,27 @@
+services:
+  agent-rag:
+    profiles: [local-llm]
+    environment:
+      AGENT_RAG_MODE: local-llm
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://llm:11434/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-qwen2.5:7b}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  tensorrt-service:
+    image: nvcr.io/nvidia/tensorrt:24.08-py3
+    profiles: [tensorrt]
+    command: ["sleep", "infinity"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+

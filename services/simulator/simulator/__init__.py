@@ -1,0 +1,1 @@
+"""Deterministic AOI event simulator."""

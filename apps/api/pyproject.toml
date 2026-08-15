@@ -1,0 +1,22 @@
+[project]
+name = "pis-in-aoi-api"
+version = "3.5.0"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.34,<1",
+  "sqlalchemy>=2.0,<3",
+  "pydantic>=2.10,<3",
+  "psycopg[binary]>=3.2,<4",
+  "alembic>=1.14,<2",
+  "pillow>=11.3,<12",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<9", "httpx>=0.28,<1"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
