@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+import importlib.metadata
+import platform
 from pathlib import Path
+from typing import Mapping
 
 import yaml
 
 try:
-    from .contracts import DEFECT_NAMES
+    from .contracts import DEFECT_NAMES, INPUT_CONTRACT
+    from .model_metadata import ModelMetadata, sha256_file, write_model_metadata
     from .validate_yolo_dataset import validate_dataset
 except ImportError:
-    from contracts import DEFECT_NAMES
+    from contracts import DEFECT_NAMES, INPUT_CONTRACT
+    from model_metadata import ModelMetadata, sha256_file, write_model_metadata
     from validate_yolo_dataset import validate_dataset
 
 
@@ -110,6 +115,37 @@ def check_training_settings(settings: TrainingSettings) -> None:
             raise ValueError(f"DATASET_INVALID: {detail}")
 
 
+def build_training_metadata(
+    settings: TrainingSettings,
+    model_path: Path,
+    *,
+    result_paths: Mapping[str, str],
+    runtime_versions: Mapping[str, str],
+) -> ModelMetadata:
+    data_yaml = Path(settings.data)
+    dataset_artifact = data_yaml
+    if settings.profile == "fc_bga" and data_yaml.is_file():
+        root, manifest = _formal_dataset_root(data_yaml)
+        if manifest is not None:
+            dataset_artifact = manifest
+    if not dataset_artifact.is_file():
+        raise ValueError(f"DATA_CONFIG_UNAVAILABLE: {dataset_artifact}")
+    return ModelMetadata(
+        model_version=settings.name,
+        task="detect",
+        names=DEFECT_NAMES,
+        input_contract=INPUT_CONTRACT,
+        imgsz=settings.imgsz,
+        dataset_manifest_sha256=sha256_file(dataset_artifact),
+        model_sha256=sha256_file(model_path),
+        onnx_sha256=None,
+        runtime_versions=dict(runtime_versions),
+        export_settings={},
+        result_paths=dict(result_paths),
+        intended_use="portfolio_internal_poc",
+    )
+
+
 def run_training(settings: TrainingSettings) -> Path:
     check_training_settings(settings)
     try:
@@ -121,7 +157,28 @@ def run_training(settings: TrainingSettings) -> Path:
     best = Path(results.save_dir) / "weights" / "best.pt"
     if not best.is_file():
         raise RuntimeError("training completed without weights/best.pt")
-    model.val(data=settings.data, split="test", imgsz=settings.imgsz, device=settings.device, conf=settings.conf)
+    validation = model.val(
+        data=settings.data,
+        split="test",
+        imgsz=settings.imgsz,
+        device=settings.device,
+        conf=settings.conf,
+    )
+    result_paths = {
+        "train": str(Path(results.save_dir)),
+        "test": str(Path(validation.save_dir)),
+    }
+    metadata = build_training_metadata(
+        settings,
+        best,
+        result_paths=result_paths,
+        runtime_versions={
+            "python": platform.python_version(),
+            "pytorch": importlib.metadata.version("torch"),
+            "ultralytics": importlib.metadata.version("ultralytics"),
+        },
+    )
+    write_model_metadata(best.parent / "model_metadata.json", metadata)
     return best
 
 
@@ -142,4 +199,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
