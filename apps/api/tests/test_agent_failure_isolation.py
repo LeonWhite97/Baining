@@ -26,4 +26,3 @@ def test_agent_timeout_degrades_report_but_does_not_break_realtime_api() -> None
     assert report.json()["status"] == "DRAFT"
     assert dashboard.status_code == 200
     assert inspection.status_code == 200
-

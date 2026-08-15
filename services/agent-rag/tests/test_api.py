@@ -35,4 +35,3 @@ def test_report_and_release_endpoints_require_human_approval() -> None:
     assert report.json()["status"] == "DRAFT"
     assert release.json()["approval_required"] is True
     assert release.json()["action"] == "BLOCK"
-

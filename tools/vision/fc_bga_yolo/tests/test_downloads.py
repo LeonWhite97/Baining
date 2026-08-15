@@ -60,4 +60,3 @@ def test_public_download_uses_pinned_project_and_writes_manifest(tmp_path: Path)
     assert manifest["purpose"] == "public_smoke"
     assert manifest["license"] == "CC BY 4.0"
     assert "secret-value" not in json.dumps(manifest)
-

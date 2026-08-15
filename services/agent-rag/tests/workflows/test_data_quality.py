@@ -7,4 +7,3 @@ def test_missing_identity_never_recommends_pass() -> None:
     assert result.risk_level == "CRITICAL"
     assert "AUTO_PASS" not in result.recommended_actions
     assert result.evidence_refs
-

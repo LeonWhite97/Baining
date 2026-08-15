@@ -15,4 +15,3 @@ Agent 健康检查失败、检索超时、引用校验失败、LLM endpoint 不�
 ## 安全边界
 
 Agent/RAG 不得创建 PASS、修改 `inspection_events` 身份、执行模型发布或替代人工批准。未知、缺失、错配和低置信度仍进入 REVIEW/QUARANTINED。
-

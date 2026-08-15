@@ -21,4 +21,3 @@ class AgentRagClient:
                 return json.loads(response.read().decode("utf-8"))
         except (TimeoutError, urllib.error.URLError, OSError) as exc:
             raise TimeoutError(str(exc)) from exc
-

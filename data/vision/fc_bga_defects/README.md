@@ -13,4 +13,3 @@ Each source sample is one UTF-8 JSONL record:
 Labels use normalized YOLO detection rows: `class_id center_x center_y width height`. An empty label is a normal sample; `NORMAL` is not a class. `MISSING_BALL` annotations require an approved expected-ball grid or equivalent product reference so that absence boxes are auditable. Use `group_id` to keep the same lot or other approved physical group out of multiple splits.
 
 The fixed class order is defined in `tools/vision/fc_bga_yolo/configs/classes.yaml`. Real formal images and labels are not included in this repository.
-

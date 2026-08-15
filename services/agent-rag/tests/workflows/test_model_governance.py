@@ -23,4 +23,3 @@ def test_nonzero_silent_mismatch_blocks_release() -> None:
     assert result.action == "BLOCK"
     assert "SILENT_MISMATCH" in result.failed_gates
     assert result.approval_required is True
-

@@ -17,4 +17,3 @@ def stable_embedding(text: str, dimensions: int = 64) -> list[float]:
 
 def cosine_similarity(left: list[float], right: list[float]) -> float:
     return sum(a * b for a, b in zip(left, right, strict=False))
-

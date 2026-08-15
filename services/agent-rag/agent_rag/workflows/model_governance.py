@@ -19,4 +19,3 @@ def evaluate_release(metrics: dict[str, object]) -> ReleaseRecommendation:
     action = "BLOCK" if failed else "READY_FOR_APPROVAL"
     evidence = InMemoryKnowledgeRepository.seeded().retrieve("模型发布门禁", ["MODEL_RELEASE"], 2)
     return ReleaseRecommendation(action, failed, evidence, approval_required=True)
-

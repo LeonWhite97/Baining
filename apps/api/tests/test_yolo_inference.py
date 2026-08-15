@@ -163,4 +163,3 @@ def test_ultralytics_adapter_rechecks_model_hash(tmp_path: Path) -> None:
 
     with pytest.raises(InferenceUnavailable, match="integrity"):
         adapter.predict(request)
-

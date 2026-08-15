@@ -33,4 +33,3 @@ def evaluate_station_alert(
     session.add(alert)
     session.commit()
     return alert
-

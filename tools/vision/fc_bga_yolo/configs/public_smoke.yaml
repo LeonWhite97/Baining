@@ -5,4 +5,3 @@ test: test/images
 names:
   0: OK
   1: NG
-

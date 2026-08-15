@@ -95,4 +95,3 @@ def validate_model_package(
     if not model_path.is_file() or sha256_file(model_path) != metadata.model_sha256:
         raise ValueError("MODEL_HASH_MISMATCH")
     return metadata
-

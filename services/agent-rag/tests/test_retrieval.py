@@ -11,4 +11,3 @@ def test_retrieve_filters_category_and_preserves_citation() -> None:
     assert results[0].document_id
     assert results[0].chunk_id
     assert results[0].citation
-

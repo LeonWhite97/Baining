@@ -17,4 +17,3 @@ def test_report_draft_separates_facts_from_hypotheses() -> None:
     assert draft.open_questions
     assert all(ref.document_id for ref in draft.evidence_refs)
     assert draft.status == "DRAFT"
-

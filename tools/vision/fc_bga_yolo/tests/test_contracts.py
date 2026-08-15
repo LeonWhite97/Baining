@@ -34,4 +34,3 @@ def test_duplicate_class_names_are_rejected(tmp_path: Path) -> None:
     path.write_text("names:\n  0: BALL_BRIDGE\n  1: BALL_BRIDGE\n", encoding="utf-8")
     with pytest.raises(ValueError, match="unique"):
         load_class_names(path)
-

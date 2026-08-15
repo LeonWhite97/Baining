@@ -44,4 +44,3 @@ def test_same_image_with_different_labels_is_a_conflict(tmp_path: Path) -> None:
     assert report.conflicts == 1
     with pytest.raises(ValueError, match="LABEL_CONFLICT"):
         apply_duplicate_report(report)
-

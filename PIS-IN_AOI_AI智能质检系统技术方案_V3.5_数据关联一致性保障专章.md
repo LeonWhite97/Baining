@@ -2,9 +2,9 @@
 
 ## 数据关联一致性保障专章（PoC 实施与生产上线准备版）
 
-**文档版本**：V3.5  
-**编制日期**：2026 年 8 月  
-**适用范围**：PIS-IN AOI 旁路 AI 复判系统的数据适配层、YOLOv8/TensorRT 推理服务、FastAPI 接口层、离线 LangGraph 数据治理流程。  
+**文档版本**：V3.5
+**编制日期**：2026 年 8 月
+**适用范围**：PIS-IN AOI 旁路 AI 复判系统的数据适配层、YOLOv8/TensorRT 推理服务、FastAPI 接口层、离线 LangGraph 数据治理流程。
 **架构边界**：本专章不改变既定的 PIS-IN、FastAPI、YOLOv8、TensorRT 和独立 Agent/RAG 技术栈。当前采用 AOI 工控机单机独立运行，数据关联、审计和上线治理围绕本机采集、PostgreSQL 与可选 MES 异步同步实施；Handler 自动握手与实时 BIN 回传不属于当前主链路。
 
 ---

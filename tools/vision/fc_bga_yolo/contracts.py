@@ -36,4 +36,3 @@ def load_class_names(path: Path) -> tuple[str, ...]:
     if path.name == "classes.yaml" and ordered != DEFECT_NAMES:
         raise ValueError("CLASS_CONFIG_INVALID: formal class order does not match the contract")
     return ordered
-

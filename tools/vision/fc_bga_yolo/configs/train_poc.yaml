@@ -11,4 +11,3 @@ seed: 42
 conf: 0.25
 project: tools/vision/fc_bga_yolo/runs
 name: fc_bga_poc
-

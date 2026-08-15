@@ -56,4 +56,3 @@ def test_missing_label_pair_is_reported(dataset_root: Path) -> None:
     Image.new("RGB", (4, 4), "black").save(dataset_root / "val/images/unpaired.png")
     report = validate_dataset(dataset_root, DEFECT_NAMES, None)
     assert any("MISSING_LABEL" in error for error in report.errors)
-

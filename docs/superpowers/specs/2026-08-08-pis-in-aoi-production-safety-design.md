@@ -1,8 +1,8 @@
 # PIS-IN AOI V3.5 Production Safety Hardening Design
 
-**Date:** 2026-08-08  
-**Status:** Awaiting written-spec approval  
-**Scope:** Production safety gates, trusted ingestion, controlled rollout, and executable acceptance  
+**Date:** 2026-08-08
+**Status:** Awaiting written-spec approval
+**Scope:** Production safety gates, trusted ingestion, controlled rollout, and executable acceptance
 **Architecture constraint:** Keep FastAPI, PostgreSQL, React, Docker Compose, Agent/RAG, YOLOv8, and TensorRT. Agent/RAG remains outside the real-time automatic PASS path.
 
 ## 1. Goal

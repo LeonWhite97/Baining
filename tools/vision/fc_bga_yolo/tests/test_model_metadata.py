@@ -64,4 +64,3 @@ def test_wrong_input_contract_is_rejected(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match="MODEL_INPUT_CONTRACT_MISMATCH"):
         validate_model_package(model, metadata_path, DEFECT_NAMES)
-

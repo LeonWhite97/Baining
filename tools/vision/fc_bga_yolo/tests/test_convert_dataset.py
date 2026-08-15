@@ -99,4 +99,3 @@ def test_invalid_yolo_label_is_rejected(tmp_path: Path) -> None:
     (tmp_path / "sample-1.txt").write_text("0 0.5 0.5 0.2\n", encoding="utf-8")
     with pytest.raises(ValueError, match="LABEL_FORMAT_INVALID"):
         convert_manifest(manifest, tmp_path / "dataset")
-

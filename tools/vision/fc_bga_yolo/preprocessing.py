@@ -21,4 +21,3 @@ def stack_rgb_grayscale(r_path: Path, g_path: Path, b_path: Path) -> Image.Image
     if len({channel.size for channel in channels}) != 1:
         raise ValueError("IMAGE_SIZE_MISMATCH: R/G/B dimensions differ")
     return Image.merge("RGB", channels)
-

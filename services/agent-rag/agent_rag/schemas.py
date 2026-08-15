@@ -39,4 +39,3 @@ class ReleaseRecommendation:
     failed_gates: list[str] = field(default_factory=list)
     evidence_refs: list[Evidence] = field(default_factory=list)
     approval_required: bool = True
-
