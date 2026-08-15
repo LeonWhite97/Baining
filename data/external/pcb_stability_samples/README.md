@@ -8,6 +8,8 @@
 - `normalized_1920x1080/`：按接口文档示例尺寸生成的 JPEG。采用等比缩放和黑边填充，不拉伸内容。
 - `manifest.csv` / `manifest.json`：来源页、作者、许可、尺寸和 SHA-256 校验值。
 
+`normalized_1920x1080/invalid_truncated.jpg` 是仅用于验证 `IMAGE_DECODE_FAILED` 的 10 字节损坏 JPEG 夹具，不是视觉素材，也不进入清单或模型训练。
+
 由于 Wikimedia Commons 在获取素材时对媒体 CDN 限流，`pcb_01_canonscan` 为 960 px 视觉基线图，其余 9 张是网页已加载的 250–330 px 缩略图。清单中的 `quality_tier` 会将后者标记为 `low_resolution_pipeline_stress`。这些低分辨率图适合验证小图输入、放大、内存、异常尺寸和并发处理，不适合评估小缺陷识别精度。`normalized_1920x1080` 只改变画布和编码，不会创造图像细节。
 
 项目文档表明当前目标设备是 PIS-IN 半导体封装 AOI，默认输入为同一检测事件下的 R/G/B/RING 多光源图像，并结合 3D 量测。这里的 PCB 网络照片没有同机位、多光源、3D 数据或缺陷真值，因此只适合验证：
