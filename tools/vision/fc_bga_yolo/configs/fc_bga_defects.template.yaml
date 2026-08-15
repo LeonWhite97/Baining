@@ -1,0 +1,13 @@
+path: ../../../../data/vision/fc_bga_defects
+train: train/images
+val: val/images
+test: test/images
+names:
+  0: BALL_BRIDGE
+  1: MISSING_BALL
+  2: EXTRA_BALL
+  3: BALL_SIZE_ABNORMAL
+  4: BALL_OFFSET
+  5: BALL_SHAPE_ABNORMAL
+  6: FOREIGN_MATERIAL
+
