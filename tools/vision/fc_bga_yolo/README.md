@@ -53,6 +53,18 @@ python tools/vision/fc_bga_yolo/validate_yolo_dataset.py data/vision/fc_bga_defe
 
 The converter rejects path traversal, missing/extra lights, duplicate sample IDs, invalid YOLO rows, decode failures, and unequal dimensions. It builds in a same-volume staging directory and replaces the prior generated tree only after every sample succeeds, while preserving scaffold documentation. Formal image artifacts are manifest-registered PNG files; unsupported image or label files and unmanifested nested artifacts are rejected. The validator also rejects image/label mismatches, non-finite or out-of-range boxes, changed image or label hashes, input-contract drift, and `group_id` leakage across train/val/test.
 
+## Mock Four-light Capture
+
+Use this only to test the data contract before real same-camera R/G/B/RING captures exist. It copies each existing image into four PNG evidence files, writes an empty YOLO label, and emits a `source.jsonl` that can be passed to the formal converter:
+
+```powershell
+python tools/vision/fc_bga_yolo/mock_capture_dataset.py D:/temp-microscope-images D:/aoi-data/fc_bga_mock_capture --prefix MOCK
+python tools/vision/fc_bga_yolo/convert_dataset.py D:/aoi-data/fc_bga_mock_capture/source.jsonl data/vision/fc_bga_defects
+python tools/vision/fc_bga_yolo/validate_yolo_dataset.py data/vision/fc_bga_defects --manifest data/vision/fc_bga_defects/manifest.jsonl --json-report D:/aoi-runs/mock-dataset-validation.json
+```
+
+The default `group_id` isolates each mock sample so train/val/test validation can pass without group leakage. Use a fixed `--group-id` only when you intentionally want samples to stay in one physical group. The generated R/G/B/RING images are simulated copies from one source image. They prove file layout, manifest generation, conversion, and validation only; they are not formal four-light evidence and must not be used for production accuracy claims.
+
 ## Deduplication
 
 Audit is the default and never changes data:
