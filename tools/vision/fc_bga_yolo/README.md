@@ -135,4 +135,3 @@ The adapter checks class order, input contract, metadata, and the model SHA-256 
 - [BGA RAM Chips Detection](https://universe.roboflow.com/paween/bga-ram-chips-detection-t3cqn), CC BY 4.0, public smoke only.
 - [BGA-Balls](https://universe.roboflow.com/kenshin-blirtz/bga-balls-3ihxj), CC BY 4.0, segmentation reference only.
 - [Void detection on X-ray](https://universe.roboflow.com/pcbdefectdetection-2qt8g/void-detection-on-x-ray-s8gso), CC BY 4.0, X-ray reference only.
-
