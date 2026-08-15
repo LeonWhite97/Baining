@@ -8,10 +8,20 @@ from pathlib import Path
 
 try:
     from .contracts import DEFECT_NAMES
-    from .model_metadata import sha256_file, validate_model_package, write_model_metadata
+    from .model_metadata import (
+        sha256_file,
+        validate_loaded_model_names,
+        validate_model_package,
+        write_model_metadata,
+    )
 except ImportError:
     from contracts import DEFECT_NAMES
-    from model_metadata import sha256_file, validate_model_package, write_model_metadata
+    from model_metadata import (
+        sha256_file,
+        validate_loaded_model_names,
+        validate_model_package,
+        write_model_metadata,
+    )
 
 
 def export_model(
@@ -21,9 +31,14 @@ def export_model(
     format_name: str,
     imgsz: int | None = None,
     device: str = "cpu",
+    opset: int = 17,
+    dynamic: bool = False,
+    simplify: bool = False,
 ) -> Path:
     if format_name not in {"onnx", "engine"}:
         raise ValueError("EXPORT_FORMAT_INVALID")
+    if opset < 1:
+        raise ValueError("EXPORT_OPSET_INVALID")
     metadata = validate_model_package(model_path, metadata_path, DEFECT_NAMES)
     try:
         import torch
@@ -40,15 +55,17 @@ def export_model(
     else:
         tensorrt_version = "not-applicable"
     model = YOLO(str(model_path))
-    exported = Path(
-        model.export(
-            format=format_name,
-            imgsz=imgsz or metadata.imgsz,
-            device=device,
-            dynamic=False,
-            simplify=False,
-        )
-    )
+    validate_loaded_model_names(model, DEFECT_NAMES)
+    export_kwargs: dict[str, object] = {
+        "format": format_name,
+        "imgsz": imgsz or metadata.imgsz,
+        "device": device,
+        "dynamic": dynamic,
+        "simplify": simplify,
+    }
+    if format_name == "onnx":
+        export_kwargs["opset"] = opset
+    exported = Path(model.export(**export_kwargs))
     if not exported.is_file() or exported.stat().st_size < 1024:
         raise RuntimeError("export did not produce a valid model file")
     versions = dict(metadata.runtime_versions)
@@ -67,7 +84,15 @@ def export_model(
         metadata,
         onnx_sha256=sha256_file(exported) if format_name == "onnx" else metadata.onnx_sha256,
         runtime_versions=versions,
-        export_settings={"format": format_name, "imgsz": imgsz or metadata.imgsz, "device": device},
+        export_settings={
+            "format": format_name,
+            "imgsz": imgsz or metadata.imgsz,
+            "device": device,
+            "opset": opset if format_name == "onnx" else None,
+            "dynamic": dynamic,
+            "simplify": simplify,
+            "output_sha256": sha256_file(exported),
+        },
     )
     write_model_metadata(metadata_path, updated)
     return exported
@@ -80,8 +105,22 @@ def main() -> int:
     parser.add_argument("--format", choices=("onnx", "engine"), default="onnx")
     parser.add_argument("--imgsz", type=int)
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--opset", type=int, default=17)
+    parser.add_argument("--dynamic", action="store_true")
+    parser.add_argument("--simplify", action="store_true")
     args = parser.parse_args()
-    print(export_model(args.model, args.metadata, format_name=args.format, imgsz=args.imgsz, device=args.device))
+    print(
+        export_model(
+            args.model,
+            args.metadata,
+            format_name=args.format,
+            imgsz=args.imgsz,
+            device=args.device,
+            opset=args.opset,
+            dynamic=args.dynamic,
+            simplify=args.simplify,
+        )
+    )
     return 0
 
 

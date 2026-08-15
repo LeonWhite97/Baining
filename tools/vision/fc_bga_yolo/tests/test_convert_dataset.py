@@ -99,3 +99,54 @@ def test_invalid_yolo_label_is_rejected(tmp_path: Path) -> None:
     (tmp_path / "sample-1.txt").write_text("0 0.5 0.5 0.2\n", encoding="utf-8")
     with pytest.raises(ValueError, match="LABEL_FORMAT_INVALID"):
         convert_manifest(manifest, tmp_path / "dataset")
+
+
+def test_late_invalid_record_leaves_existing_output_untouched(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path)
+    first = json.loads(manifest.read_text(encoding="utf-8"))
+    second_images: dict[str, str] = {}
+    for light, value in (("R", 30), ("G", 110), ("B", 210), ("RING", 9)):
+        path = tmp_path / f"{light}2.png"
+        size = (3, 2) if light == "RING" else (2, 2)
+        Image.new("L", size, value).save(path)
+        second_images[light] = path.name
+    (tmp_path / "sample-2.txt").write_text("", encoding="utf-8")
+    second = {
+        "sample_id": "sample-2",
+        "group_id": "lot-2",
+        "split": "val",
+        "images": second_images,
+        "label": "sample-2.txt",
+    }
+    manifest.write_text(
+        json.dumps(first) + "\n" + json.dumps(second) + "\n",
+        encoding="utf-8",
+    )
+    output_root = tmp_path / "dataset"
+    (output_root / "train/images").mkdir(parents=True)
+    old_image = output_root / "train/images/old.png"
+    Image.new("RGB", (1, 1), "red").save(old_image)
+    old_manifest = output_root / "manifest.jsonl"
+    old_manifest.write_text("old-state\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="IMAGE_SIZE_MISMATCH: sample-2"):
+        convert_manifest(manifest, output_root)
+
+    assert old_image.is_file()
+    assert old_manifest.read_text(encoding="utf-8") == "old-state\n"
+    assert not (output_root / "train/images/sample-1.png").exists()
+
+
+def test_successful_conversion_replaces_stale_dataset_and_preserves_scaffold(tmp_path: Path) -> None:
+    manifest = _write_manifest(tmp_path)
+    output_root = tmp_path / "dataset"
+    (output_root / "train/images").mkdir(parents=True)
+    stale = output_root / "train/images/stale.png"
+    Image.new("RGB", (1, 1), "red").save(stale)
+    (output_root / "README.md").write_text("keep me\n", encoding="utf-8")
+
+    convert_manifest(manifest, output_root)
+
+    assert not stale.exists()
+    assert (output_root / "train/images/sample-1.png").is_file()
+    assert (output_root / "README.md").read_text(encoding="utf-8") == "keep me\n"

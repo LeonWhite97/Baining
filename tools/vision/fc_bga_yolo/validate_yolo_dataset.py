@@ -7,17 +7,30 @@ from hashlib import sha256
 import json
 import math
 from pathlib import Path
+import re
 from typing import Iterable
 
 from PIL import Image, UnidentifiedImageError
 
 try:
-    from .contracts import DEFECT_NAMES
+    from .contracts import DEFECT_NAMES, INPUT_CONTRACT, REQUIRED_LIGHTS
 except ImportError:
-    from contracts import DEFECT_NAMES
+    from contracts import DEFECT_NAMES, INPUT_CONTRACT, REQUIRED_LIGHTS
 
 
 _IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png"}
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_MANIFEST_KEYS = {
+    "sample_id",
+    "group_id",
+    "split",
+    "input_contract",
+    "input_sha256",
+    "label_sha256",
+    "output_image",
+    "output_label",
+    "output_sha256",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +92,9 @@ def _validate_label(path: Path, class_names: tuple[str, ...]) -> tuple[int, list
 def _manifest_errors(root: Path, manifest: Path) -> Iterable[str]:
     groups: defaultdict[str, set[str]] = defaultdict(set)
     sample_ids: set[str] = set()
+    expected_images: set[str] = set()
+    expected_labels: set[str] = set()
+    root = root.resolve()
     for line_number, line in enumerate(manifest.read_text(encoding="utf-8-sig").splitlines(), start=1):
         if not line.strip():
             continue
@@ -87,41 +103,128 @@ def _manifest_errors(root: Path, manifest: Path) -> Iterable[str]:
         except json.JSONDecodeError:
             yield f"MANIFEST_JSON_INVALID:{line_number}"
             continue
+        if not isinstance(item, dict):
+            yield f"MANIFEST_RECORD_INVALID:{line_number}"
+            continue
         sample_id = item.get("sample_id")
         group_id = item.get("group_id")
         split = item.get("split")
+        if (
+            not isinstance(sample_id, str)
+            or not sample_id
+            or not isinstance(group_id, str)
+            or not group_id
+            or split not in {"train", "val", "test"}
+        ):
+            yield f"MANIFEST_FIELD_INVALID:{line_number}"
+            continue
         if sample_id in sample_ids:
             yield f"DUPLICATE_SAMPLE_ID:{sample_id}"
-        if isinstance(sample_id, str):
-            sample_ids.add(sample_id)
-        if isinstance(group_id, str) and split in {"train", "val", "test"}:
-            groups[group_id].add(split)
-        output_image = item.get("output_image")
-        expected_hash = item.get("output_sha256")
-        if isinstance(output_image, str) and isinstance(expected_hash, str):
-            path = (root / output_image).resolve()
+        sample_ids.add(sample_id)
+        groups[group_id].add(split)
+        if set(item) != _MANIFEST_KEYS:
+            yield f"MANIFEST_RECORD_INVALID:{line_number}"
+            continue
+        if item.get("input_contract") != INPUT_CONTRACT:
+            yield f"INPUT_CONTRACT_MISMATCH:{sample_id}"
+        input_hashes = item.get("input_sha256")
+        if (
+            not isinstance(input_hashes, dict)
+            or set(input_hashes) != set(REQUIRED_LIGHTS)
+            or any(not isinstance(value, str) or not _SHA256.fullmatch(value) for value in input_hashes.values())
+        ):
+            yield f"INPUT_HASH_INVALID:{sample_id}"
+        artifacts = (
+            (
+                "output_image",
+                "output_sha256",
+                f"{split}/images/{sample_id}.png",
+                expected_images,
+                "IMAGE",
+            ),
+            (
+                "output_label",
+                "label_sha256",
+                f"{split}/labels/{sample_id}.txt",
+                expected_labels,
+                "LABEL",
+            ),
+        )
+        for path_field, hash_field, expected_relative, expected_set, kind in artifacts:
+            relative = item.get(path_field)
+            expected_hash = item.get(hash_field)
+            if not isinstance(relative, str) or not isinstance(expected_hash, str):
+                yield f"MANIFEST_FIELD_INVALID:{sample_id}:{path_field}"
+                continue
+            path = (root / relative).resolve()
             try:
-                path.relative_to(root.resolve())
+                path.relative_to(root)
             except ValueError:
                 yield f"PATH_OUTSIDE_ROOT:{sample_id}"
                 continue
-            if not path.is_file() or _hash(path) != expected_hash:
-                yield f"HASH_MISMATCH:{sample_id}"
+            normalized = path.relative_to(root).as_posix()
+            if normalized != expected_relative:
+                yield f"MANIFEST_PATH_MISMATCH:{sample_id}:{path_field}"
+            if normalized in expected_set:
+                yield f"DUPLICATE_MANIFEST_ARTIFACT:{normalized}"
+            expected_set.add(normalized)
+            if not path.is_file():
+                yield f"{kind}_MISSING:{sample_id}"
+            elif not _SHA256.fullmatch(expected_hash) or _hash(path) != expected_hash:
+                yield f"{kind}_HASH_MISMATCH:{sample_id}"
+    actual_images = {
+        path.relative_to(root).as_posix()
+        for split in ("train", "val", "test")
+        for path in (root / split / "images").rglob("*")
+        if path.is_file() and path.suffix.lower() in _IMAGE_SUFFIXES
+    }
+    actual_labels = {
+        path.relative_to(root).as_posix()
+        for split in ("train", "val", "test")
+        for path in (root / split / "labels").rglob("*.txt")
+        if path.is_file()
+    }
+    for relative in sorted(actual_images - expected_images):
+        yield f"UNMANIFESTED_IMAGE:{relative}"
+    for relative in sorted(actual_labels - expected_labels):
+        yield f"UNMANIFESTED_LABEL:{relative}"
     for group_id, splits in groups.items():
         if len(splits) > 1:
             yield f"GROUP_LEAKAGE:{group_id}:{','.join(sorted(splits))}"
+
+
+def _unsupported_tree_files(root: Path) -> Iterable[str]:
+    for split in ("train", "val", "test"):
+        directories = (
+            (root / split / "images", _IMAGE_SUFFIXES, "IMAGE"),
+            (root / split / "labels", {".txt"}, "LABEL"),
+        )
+        for directory, suffixes, kind in directories:
+            if not directory.is_dir():
+                continue
+            for path in directory.rglob("*"):
+                if (
+                    path.is_file()
+                    and path.name != ".gitkeep"
+                    and path.suffix.lower() not in suffixes
+                ):
+                    relative = path.relative_to(root).as_posix()
+                    yield f"UNSUPPORTED_{kind}_FILE:{relative}"
 
 
 def validate_dataset(
     root: Path,
     class_names: tuple[str, ...],
     manifest: Path | None,
+    *,
+    require_nonempty_splits: bool = False,
 ) -> ValidationReport:
     root = root.resolve()
     errors: list[str] = []
     images = boxes = empty_labels = 0
     split_images: Counter[str] = Counter()
     class_boxes: Counter[str] = Counter()
+    errors.extend(_unsupported_tree_files(root))
     for split in ("train", "val", "test"):
         image_dir = root / split / "images"
         label_dir = root / split / "labels"
@@ -152,6 +255,8 @@ def validate_dataset(
                 empty_labels += 1
         for stem in sorted(set(label_by_stem) - set(image_by_stem)):
             errors.append(f"MISSING_IMAGE:{split}:{stem}")
+        if require_nonempty_splits and not image_by_stem:
+            errors.append(f"EMPTY_SPLIT:{split}")
     if manifest is not None:
         if not manifest.is_file():
             errors.append(f"MANIFEST_UNAVAILABLE:{manifest.name}")

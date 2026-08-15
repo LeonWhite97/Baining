@@ -5,6 +5,8 @@ from dataclasses import asdict, dataclass, replace
 from hashlib import sha256
 import json
 from pathlib import Path
+import shutil
+import tempfile
 
 
 _IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png"}
@@ -20,12 +22,20 @@ class DuplicateGroup:
 
 
 @dataclass(frozen=True, slots=True)
+class DeduplicationPostcheck:
+    groups: tuple[DuplicateGroup, ...]
+    redundant_images: int
+    conflicts: int
+
+
+@dataclass(frozen=True, slots=True)
 class DeduplicationReport:
     root: Path
     groups: tuple[DuplicateGroup, ...]
     redundant_images: int
     conflicts: int
     removed_images: int = 0
+    postcheck: DeduplicationPostcheck | None = None
 
 
 def _hash(path: Path) -> str:
@@ -84,31 +94,95 @@ def audit_duplicates(root: Path) -> DeduplicationReport:
 def apply_duplicate_report(report: DeduplicationReport) -> DeduplicationReport:
     if report.conflicts:
         raise ValueError("LABEL_CONFLICT: duplicate images have different labels")
-    removed = 0
-    for group in report.groups:
-        for image in group.remove_images:
-            label = _label_path(image)
-            image.unlink(missing_ok=False)
-            label.unlink(missing_ok=True)
-            removed += 1
-    return replace(report, removed_images=removed)
+    remove_images = tuple(image for group in report.groups for image in group.remove_images)
+    removed_relatives = {image.relative_to(report.root).as_posix() for image in remove_images}
+    manifest = report.root / "manifest.jsonl"
+    manifest_output: str | None = None
+    if manifest.is_file():
+        kept_lines: list[str] = []
+        matched: set[str] = set()
+        for line_number, line in enumerate(
+            manifest.read_text(encoding="utf-8-sig").splitlines(),
+            start=1,
+        ):
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"MANIFEST_JSON_INVALID:{line_number}") from exc
+            if not isinstance(item, dict) or not isinstance(item.get("output_image"), str):
+                raise ValueError(f"MANIFEST_RECORD_INVALID:{line_number}")
+            relative = item["output_image"]
+            if relative in removed_relatives:
+                matched.add(relative)
+            else:
+                kept_lines.append(json.dumps(item, sort_keys=True) + "\n")
+        if matched != removed_relatives:
+            raise ValueError("MANIFEST_RECORD_MISSING_FOR_DUPLICATE")
+        manifest_output = "".join(kept_lines)
+    quarantine = Path(tempfile.mkdtemp(prefix=".fc-bga-dedup-", dir=report.root.parent))
+    moved: list[tuple[Path, Path]] = []
+    manifest_tmp = manifest.with_name(f".{manifest.name}.dedup.tmp")
+    try:
+        for image in remove_images:
+            for source in (image, _label_path(image)):
+                if not source.exists():
+                    continue
+                destination = quarantine / source.relative_to(report.root)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                source.replace(destination)
+                moved.append((source, destination))
+        if manifest_output is not None:
+            manifest_tmp.write_text(manifest_output, encoding="utf-8")
+            manifest_tmp.replace(manifest)
+    except Exception:
+        manifest_tmp.unlink(missing_ok=True)
+        for source, destination in reversed(moved):
+            source.parent.mkdir(parents=True, exist_ok=True)
+            destination.replace(source)
+        raise
+    finally:
+        if quarantine.exists():
+            shutil.rmtree(quarantine)
+    postcheck_report = audit_duplicates(report.root)
+    postcheck = DeduplicationPostcheck(
+        groups=postcheck_report.groups,
+        redundant_images=postcheck_report.redundant_images,
+        conflicts=postcheck_report.conflicts,
+    )
+    return replace(
+        report,
+        removed_images=len(remove_images),
+        postcheck=postcheck,
+    )
 
 
 def _json_report(report: DeduplicationReport) -> dict[str, object]:
-    return {
-        "root": str(report.root),
-        "redundant_images": report.redundant_images,
-        "conflicts": report.conflicts,
-        "removed_images": report.removed_images,
-        "groups": [
+    def groups_json(groups: tuple[DuplicateGroup, ...]) -> list[dict[str, object]]:
+        return [
             {
                 "image_sha256": group.image_sha256,
                 "keep_image": str(group.keep_image),
                 "remove_images": [str(path) for path in group.remove_images],
                 "label_conflict": group.label_conflict,
             }
-            for group in report.groups
-        ],
+            for group in groups
+        ]
+
+    return {
+        "root": str(report.root),
+        "redundant_images": report.redundant_images,
+        "conflicts": report.conflicts,
+        "removed_images": report.removed_images,
+        "groups": groups_json(report.groups),
+        "postcheck": None
+        if report.postcheck is None
+        else {
+            "redundant_images": report.postcheck.redundant_images,
+            "conflicts": report.postcheck.conflicts,
+            "groups": groups_json(report.postcheck.groups),
+        },
     }
 
 

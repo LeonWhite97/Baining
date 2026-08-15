@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.vision.fc_bga_yolo.download_models import verify_weight
+from tools.vision.fc_bga_yolo.download_models import prepare_models, verify_weight
 from tools.vision.fc_bga_yolo.download_public_smoke import download_public_smoke
 
 
@@ -60,3 +60,26 @@ def test_public_download_uses_pinned_project_and_writes_manifest(tmp_path: Path)
     assert manifest["purpose"] == "public_smoke"
     assert manifest["license"] == "CC BY 4.0"
     assert "secret-value" not in json.dumps(manifest)
+
+
+def test_prepare_models_skips_valid_existing_weight_unless_forced(tmp_path: Path) -> None:
+    destination = tmp_path / "pretrained"
+    destination.mkdir()
+    (destination / "yolov8n.pt").write_bytes(b"n" * (1024 * 1024))
+    calls: list[tuple[str, bool]] = []
+
+    def downloader(model_name: str, output: Path, *, force: bool) -> object:
+        calls.append((model_name, force))
+        target = output / model_name
+        target.write_bytes(model_name.encode("ascii") * (1024 * 1024))
+        return verify_weight(target)
+
+    infos = prepare_models(
+        ("yolov8n.pt", "yolov8s.pt"),
+        destination,
+        force=False,
+        downloader=downloader,
+    )
+
+    assert [info.path.name for info in infos] == ["yolov8n.pt", "yolov8s.pt"]
+    assert calls == [("yolov8s.pt", False)]

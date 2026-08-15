@@ -8,8 +8,11 @@ import json
 import math
 from pathlib import Path
 import re
+import shutil
+import tempfile
 from types import MappingProxyType
 from typing import Mapping
+from uuid import uuid4
 
 from PIL import Image, UnidentifiedImageError
 
@@ -147,55 +150,97 @@ def _image_size(path: Path) -> tuple[int, int]:
         raise ValueError(f"IMAGE_DECODE_FAILED: {path.name}") from exc
 
 
+def _copy_scaffold(output_root: Path, staging_root: Path) -> None:
+    if not output_root.exists():
+        return
+    if not output_root.is_dir() or output_root.is_symlink():
+        raise ValueError("OUTPUT_ROOT_INVALID")
+    dataset_entries = {"train", "val", "test", "manifest.jsonl"}
+    for source in output_root.iterdir():
+        if source.name in dataset_entries:
+            continue
+        destination = staging_root / source.name
+        if source.is_symlink():
+            raise ValueError(f"OUTPUT_SYMLINK_UNSUPPORTED: {source.name}")
+        if source.is_dir():
+            shutil.copytree(source, destination)
+        else:
+            shutil.copy2(source, destination)
+    for split in _SPLITS:
+        for category in ("images", "labels"):
+            placeholder = output_root / split / category / ".gitkeep"
+            if placeholder.is_file():
+                destination = staging_root / split / category / ".gitkeep"
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(placeholder, destination)
+
+
+def _publish_staged_dataset(staging_root: Path, output_root: Path) -> None:
+    backup: Path | None = None
+    if output_root.exists():
+        backup = output_root.with_name(f".{output_root.name}.backup-{uuid4().hex}")
+        output_root.replace(backup)
+    try:
+        staging_root.replace(output_root)
+    except Exception:
+        if backup is not None and backup.exists() and not output_root.exists():
+            backup.replace(output_root)
+        raise
+    if backup is not None:
+        shutil.rmtree(backup)
+
+
 def convert_manifest(manifest_path: Path, output_root: Path) -> ConversionReport:
     samples = parse_source_manifest(manifest_path)
-    records: list[dict[str, object]] = []
-    counts: Counter[str] = Counter()
     for sample in samples:
         _validate_label(sample.label)
         sizes = {_image_size(sample.images[light]) for light in REQUIRED_LIGHTS}
         if len(sizes) != 1:
             raise ValueError(f"IMAGE_SIZE_MISMATCH: {sample.sample_id}")
-        stacked = stack_rgb_grayscale(
-            sample.images["R"], sample.images["G"], sample.images["B"]
-        )
-        image_path = output_root / sample.split / "images" / f"{sample.sample_id}.png"
-        label_path = output_root / sample.split / "labels" / f"{sample.sample_id}.txt"
-        image_path.parent.mkdir(parents=True, exist_ok=True)
-        label_path.parent.mkdir(parents=True, exist_ok=True)
-        image_tmp = image_path.with_suffix(".png.tmp")
-        label_tmp = label_path.with_suffix(".txt.tmp")
-        try:
-            stacked.save(image_tmp, format="PNG")
-            label_tmp.write_bytes(sample.label.read_bytes())
-            image_tmp.replace(image_path)
-            label_tmp.replace(label_path)
-        finally:
-            image_tmp.unlink(missing_ok=True)
-            label_tmp.unlink(missing_ok=True)
-        records.append(
-            {
-                "sample_id": sample.sample_id,
-                "group_id": sample.group_id,
-                "split": sample.split,
-                "input_contract": INPUT_CONTRACT,
-                "input_sha256": {
-                    light: _sha256_file(sample.images[light]) for light in REQUIRED_LIGHTS
-                },
-                "label_sha256": _sha256_file(label_path),
-                "output_image": image_path.relative_to(output_root).as_posix(),
-                "output_label": label_path.relative_to(output_root).as_posix(),
-                "output_sha256": _sha256_file(image_path),
-            }
-        )
-        counts[sample.split] += 1
-    output_manifest = output_root / "manifest.jsonl"
-    manifest_tmp = output_manifest.with_suffix(".jsonl.tmp")
-    manifest_tmp.write_text(
-        "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
-        encoding="utf-8",
+    output_root = output_root.resolve()
+    output_root.parent.mkdir(parents=True, exist_ok=True)
+    staging_root = Path(
+        tempfile.mkdtemp(prefix=f".{output_root.name}.staging-", dir=output_root.parent)
     )
-    manifest_tmp.replace(output_manifest)
+    records: list[dict[str, object]] = []
+    counts: Counter[str] = Counter()
+    try:
+        _copy_scaffold(output_root, staging_root)
+        for sample in samples:
+            stacked = stack_rgb_grayscale(
+                sample.images["R"], sample.images["G"], sample.images["B"]
+            )
+            image_path = staging_root / sample.split / "images" / f"{sample.sample_id}.png"
+            label_path = staging_root / sample.split / "labels" / f"{sample.sample_id}.txt"
+            image_path.parent.mkdir(parents=True, exist_ok=True)
+            label_path.parent.mkdir(parents=True, exist_ok=True)
+            stacked.save(image_path, format="PNG")
+            label_path.write_bytes(sample.label.read_bytes())
+            records.append(
+                {
+                    "sample_id": sample.sample_id,
+                    "group_id": sample.group_id,
+                    "split": sample.split,
+                    "input_contract": INPUT_CONTRACT,
+                    "input_sha256": {
+                        light: _sha256_file(sample.images[light]) for light in REQUIRED_LIGHTS
+                    },
+                    "label_sha256": _sha256_file(label_path),
+                    "output_image": image_path.relative_to(staging_root).as_posix(),
+                    "output_label": label_path.relative_to(staging_root).as_posix(),
+                    "output_sha256": _sha256_file(image_path),
+                }
+            )
+            counts[sample.split] += 1
+        (staging_root / "manifest.jsonl").write_text(
+            "".join(json.dumps(record, sort_keys=True) + "\n" for record in records),
+            encoding="utf-8",
+        )
+        _publish_staged_dataset(staging_root, output_root)
+    finally:
+        if staging_root.exists():
+            shutil.rmtree(staging_root)
+    output_manifest = output_root / "manifest.jsonl"
     return ConversionReport(len(samples), MappingProxyType(dict(counts)), output_manifest)
 
 

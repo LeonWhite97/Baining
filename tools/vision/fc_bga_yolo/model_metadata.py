@@ -4,7 +4,7 @@ from dataclasses import asdict, dataclass
 from hashlib import sha256
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 try:
     from .contracts import INPUT_CONTRACT
@@ -18,6 +18,34 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def normalize_model_names(value: object) -> tuple[str, ...]:
+    if isinstance(value, Mapping):
+        integer_keys = set(range(len(value)))
+        string_keys = {str(index) for index in range(len(value))}
+        if set(value) == integer_keys:
+            items = tuple(value[index] for index in range(len(value)))
+        elif set(value) == string_keys:
+            items = tuple(value[str(index)] for index in range(len(value)))
+        else:
+            raise ValueError("MODEL_CLASS_MISMATCH")
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        items = tuple(value)
+    else:
+        raise ValueError("MODEL_CLASS_MISMATCH")
+    if not items or any(not isinstance(item, str) or not item for item in items):
+        raise ValueError("MODEL_CLASS_MISMATCH")
+    return items
+
+
+def validate_loaded_model_names(model: object, expected_names: tuple[str, ...]) -> None:
+    try:
+        actual_names = normalize_model_names(getattr(model, "names"))
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise ValueError("MODEL_CLASS_MISMATCH") from exc
+    if actual_names != expected_names:
+        raise ValueError("MODEL_CLASS_MISMATCH")
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,5 +1,5 @@
 profile: fc_bga
-model: tools/vision/fc_bga_yolo/weights/yolov8s.pt
+model: tools/vision/fc_bga_yolo/weights/pretrained/yolov8s.pt
 data: tools/vision/fc_bga_yolo/configs/fc_bga_defects.template.yaml
 imgsz: 1280
 epochs: 100
@@ -9,5 +9,6 @@ device: "0"
 workers: 4
 seed: 42
 conf: 0.25
+lr0: 0.01
 project: tools/vision/fc_bga_yolo/runs
 name: fc_bga_poc

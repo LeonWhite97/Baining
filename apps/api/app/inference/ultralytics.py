@@ -38,6 +38,19 @@ def _default_loader(path: Path):
     return YOLO(str(path))
 
 
+def _model_names(model: object) -> tuple[str, ...]:
+    value = getattr(model, "names", None)
+    if isinstance(value, dict) and set(value) == set(range(len(value))):
+        names = tuple(value[index] for index in range(len(value)))
+    elif isinstance(value, (list, tuple)):
+        names = tuple(value)
+    else:
+        raise ValueError("invalid model names")
+    if any(not isinstance(name, str) or not name for name in names):
+        raise ValueError("invalid model names")
+    return names
+
+
 class UltralyticsInferenceAdapter:
     def __init__(
         self,
@@ -56,6 +69,7 @@ class UltralyticsInferenceAdapter:
         self.conf = conf
         self._model_loader = model_loader or _default_loader
         self._model: object | None = None
+        self._model_sha256: str | None = None
         self._load_lock = Lock()
         self.model_version = "ultralytics:unvalidated"
 
@@ -79,18 +93,33 @@ class UltralyticsInferenceAdapter:
                 raise ValueError
         except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             raise InferenceUnavailable("model package integrity validation failed") from exc
-        self.model_version = model_version
         return metadata
 
-    def _get_model(self) -> object:
-        if self._model is None:
-            with self._load_lock:
-                if self._model is None:
-                    try:
-                        self._model = self._model_loader(self.model_path)
-                    except Exception as exc:
-                        raise InferenceUnavailable("model runtime could not be initialized") from exc
-        return self._model
+    def _get_model(self) -> tuple[object, str]:
+        with self._load_lock:
+            metadata = self._validate_package()
+            model_sha256 = str(metadata["model_sha256"])
+            model_version = str(metadata["model_version"])
+            if self._model is None or self._model_sha256 != model_sha256:
+                try:
+                    model = self._model_loader(self.model_path)
+                except Exception as exc:
+                    raise InferenceUnavailable("model runtime could not be initialized") from exc
+                try:
+                    if _model_names(model) != DEFECT_NAMES:
+                        raise ValueError("model class mismatch")
+                except (AttributeError, TypeError, ValueError) as exc:
+                    raise InferenceUnavailable("model class contract validation failed") from exc
+                confirmed = self._validate_package()
+                if (
+                    confirmed["model_sha256"] != model_sha256
+                    or confirmed["model_version"] != model_version
+                ):
+                    raise InferenceUnavailable("model package changed during runtime initialization")
+                self._model = model
+                self._model_sha256 = model_sha256
+            self.model_version = model_version
+            return self._model, model_version
 
     @staticmethod
     def _rows(prediction: object) -> list[list[float]] | list[tuple[float, ...]]:
@@ -105,11 +134,10 @@ class UltralyticsInferenceAdapter:
         raise ValueError("unexpected prediction result")
 
     def predict(self, request: InferenceRequest) -> InferenceOutput:
-        self._validate_package()
         started = perf_counter_ns()
         try:
             image = stack_rgb_grayscale(request.images)
-            model = self._get_model()
+            model, model_version = self._get_model()
             prediction = model.predict(
                 source=image,
                 imgsz=self.imgsz,
@@ -152,7 +180,7 @@ class UltralyticsInferenceAdapter:
         primary = detections[0] if detections else None
         latency_ms = max(1, round((perf_counter_ns() - started) / 1_000_000))
         return InferenceOutput(
-            model_version=self.model_version,
+            model_version=model_version,
             normal_confidence=0.0,
             defect_score=primary.confidence if primary else 0.0,
             defect_code=primary.defect_code if primary else None,

@@ -31,7 +31,7 @@ Invoke-WebRequest http://localhost:8080/api/v1/health
 
 单机正式联调建议使用 `APP_MODE=shadow`，此时 AI 只记录建议，最终结果由人工复核确认。只有真实数据盲测、回滚演练和质量审批全部通过后，才可使用 `APP_MODE=controlled` 与 `AUTO_PASS_ENABLED=true`。Handler 路由即使处于 `shadow/controlled`，也只有显式设置 `HANDLER_INTEGRATION_ENABLED=true` 才会注册。
 
-Ultralytics shadow 联调需在 API 环境安装 `apps/api[vision]`，并设置 `AOI_INFERENCE_BACKEND=ultralytics`、`AOI_MODEL_PATH`、`AOI_MODEL_METADATA_PATH`、`AOI_MODEL_DEVICE`、`AOI_MODEL_IMGSZ` 和 `AOI_MODEL_CONF`。模型元数据、固定 7 类顺序、`rgb_grayscale_stack_v1` 和权重 SHA-256 任一不匹配均 fail-closed。详细训练与导出命令见 `tools/vision/fc_bga_yolo/README.md`。
+Ultralytics shadow 联调需在 API 环境安装 `apps/api[vision]`，并设置 `AOI_INFERENCE_BACKEND=ultralytics`、`AOI_MODEL_PATH`、`AOI_MODEL_METADATA_PATH`、`AOI_MODEL_DEVICE`、`AOI_MODEL_IMGSZ` 和 `AOI_MODEL_CONF`。模型元数据、加载后权重的实际类别名称与顺序、固定 7 类契约、`rgb_grayscale_stack_v1`、imgsz 和权重 SHA-256 任一不匹配均 fail-closed。详细训练与导出命令见 `tools/vision/fc_bga_yolo/README.md`。
 
 首版真实适配器把 `normal_confidence` 固定为 0；无框或低分输出只能 REVIEW，不能自动 PASS。R/G/B 灰度三通道堆叠是待现场对照实验验证的输入方案，当前没有同机位现场样本证明其优于单光源或其他融合方式。
 

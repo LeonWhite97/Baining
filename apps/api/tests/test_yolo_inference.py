@@ -71,6 +71,7 @@ def _model_package(tmp_path: Path) -> tuple[Path, Path]:
 class FakeModel:
     def __init__(self) -> None:
         self.calls = 0
+        self.names = {index: name for index, name in enumerate(DEFECT_NAMES)}
 
     def predict(self, **kwargs: object) -> list[list[tuple[float, ...]]]:
         self.calls += 1
@@ -137,7 +138,13 @@ def test_ultralytics_adapter_loads_once_and_keeps_all_detections(tmp_path: Path)
 
     assert loader_calls == [model_path]
     assert fake.calls == 2
-    assert first == second
+    assert first.model_version == second.model_version
+    assert first.normal_confidence == second.normal_confidence
+    assert first.defect_score == second.defect_score
+    assert first.defect_code == second.defect_code
+    assert first.detections == second.detections
+    assert first.latency_ms >= 1
+    assert second.latency_ms >= 1
     assert first.model_version == "fc-bga-test-v1"
     assert first.defect_code == "BALL_BRIDGE"
     assert first.defect_score == 0.91
@@ -163,3 +170,55 @@ def test_ultralytics_adapter_rechecks_model_hash(tmp_path: Path) -> None:
 
     with pytest.raises(InferenceUnavailable, match="integrity"):
         adapter.predict(request)
+
+
+def test_ultralytics_adapter_reloads_when_verified_model_package_changes(tmp_path: Path) -> None:
+    model_path, metadata_path = _model_package(tmp_path)
+    models = [FakeModel(), FakeModel()]
+    loaded_models: list[FakeModel] = []
+
+    def load(_: Path) -> FakeModel:
+        model = models[len(loaded_models)]
+        loaded_models.append(model)
+        return model
+
+    adapter = UltralyticsInferenceAdapter(
+        model_path=model_path,
+        metadata_path=metadata_path,
+        device="cpu",
+        imgsz=1280,
+        conf=0.25,
+        model_loader=load,
+    )
+    request = InferenceRequest("event-42", "REVIEW", True, _images(tmp_path))
+    first = adapter.predict(request)
+    model_path.write_bytes(b"replacement-model")
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["model_sha256"] = sha256(model_path.read_bytes()).hexdigest()
+    metadata["model_version"] = "fc-bga-test-v2"
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+    second = adapter.predict(request)
+
+    assert loaded_models == models
+    assert models[0].calls == 1
+    assert models[1].calls == 1
+    assert first.model_version == "fc-bga-test-v1"
+    assert second.model_version == "fc-bga-test-v2"
+
+
+def test_ultralytics_adapter_rejects_loaded_model_class_mismatch(tmp_path: Path) -> None:
+    model_path, metadata_path = _model_package(tmp_path)
+    fake = FakeModel()
+    fake.names = {0: "OK", 1: "NG"}
+    adapter = UltralyticsInferenceAdapter(
+        model_path=model_path,
+        metadata_path=metadata_path,
+        device="cpu",
+        imgsz=1280,
+        conf=0.25,
+        model_loader=lambda _: fake,
+    )
+
+    with pytest.raises(InferenceUnavailable, match="class contract"):
+        adapter.predict(InferenceRequest("event-42", "REVIEW", True, _images(tmp_path)))
