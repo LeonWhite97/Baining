@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from app.domain.enums import InferenceMode
-from app.inference.base import InferenceAdapter, InferenceRequest
+from app.inference.base import InferenceAdapter, InferenceImage, InferenceOutput, InferenceRequest, InferenceUnavailable
 from app.services.decision import DecisionPolicy, InferenceEvidence, decide
 
 
@@ -23,10 +23,31 @@ def run_inference(
     input_complete: bool,
     identity_complete: bool = True,
     three_d_hard_fail: bool = False,
+    images: tuple[InferenceImage, ...] = (),
     policy: DecisionPolicy | None = None,
 ) -> OrchestratedInference:
-    output = adapter.predict(InferenceRequest(event_uuid=event_uuid, scenario=scenario, input_complete=input_complete))
     mode = InferenceMode.FULL if input_complete else InferenceMode.TWO_D_ONLY
+    try:
+        output = adapter.predict(
+            InferenceRequest(
+                event_uuid=event_uuid,
+                scenario=scenario,
+                input_complete=input_complete,
+                images=images,
+            )
+        )
+    except InferenceUnavailable:
+        unavailable_output = InferenceOutput(
+            model_version=getattr(adapter, "model_version", "unavailable"),
+            normal_confidence=0.0,
+            defect_score=0.0,
+            defect_code=None,
+            detections=(),
+            latency_ms=0,
+        )
+        return OrchestratedInference(
+            "REVIEW", 0.0, None, "MODEL_UNAVAILABLE", mode, unavailable_output
+        )
     result = decide(
         InferenceEvidence(
             identity_complete=identity_complete, input_complete=input_complete, inference_mode=mode,
@@ -35,5 +56,16 @@ def run_inference(
         ),
         policy or DecisionPolicy(),
     )
-    return OrchestratedInference(result.decision.value, output.normal_confidence, result.defect_code, result.reason_code, mode, output)
-
+    confidence = {
+        "FAIL": output.defect_score,
+        "PASS": output.normal_confidence,
+        "REVIEW": max(output.normal_confidence, output.defect_score),
+    }[result.decision.value]
+    return OrchestratedInference(
+        result.decision.value,
+        confidence,
+        result.defect_code,
+        result.reason_code,
+        mode,
+        output,
+    )

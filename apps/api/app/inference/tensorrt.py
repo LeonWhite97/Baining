@@ -6,6 +6,7 @@ from app.inference.base import InferenceOutput, InferenceRequest, InferenceUnava
 class TensorRtInferenceAdapter:
     def __init__(self, engine_path: Path) -> None:
         self.engine_path = engine_path
+        self.model_version = f"tensorrt:{engine_path.stem}"
 
     def predict(self, request: InferenceRequest) -> InferenceOutput:
         if not self.engine_path.is_file():

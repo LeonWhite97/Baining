@@ -1,12 +1,19 @@
 import os
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 
 
 class RuntimeMode(StrEnum):
     DEMO = "demo"
     SHADOW = "shadow"
     CONTROLLED = "controlled"
+
+
+class InferenceBackend(StrEnum):
+    DEMO = "demo"
+    ULTRALYTICS = "ultralytics"
+    TENSORRT = "tensorrt"
 
 
 def _parse_bool(value: bool | str | None, *, default: bool = False) -> bool:
@@ -52,4 +59,58 @@ class RuntimeSettings:
             runtime_mode,
             _parse_bool(configured_auto_pass, default=False),
             _parse_bool(configured_handler, default=False),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class InferenceSettings:
+    backend: InferenceBackend | None
+    model_path: Path | None
+    metadata_path: Path | None
+    device: str
+    imgsz: int
+    conf: float
+
+    @classmethod
+    def from_values(
+        cls,
+        *,
+        backend: str | InferenceBackend | None = None,
+        model_path: str | Path | None = None,
+        metadata_path: str | Path | None = None,
+        device: str | None = None,
+        imgsz: str | int | None = None,
+        conf: str | float | None = None,
+    ) -> "InferenceSettings":
+        raw_backend = backend if backend is not None else os.getenv("AOI_INFERENCE_BACKEND")
+        selected_backend: InferenceBackend | None = None
+        if raw_backend not in {None, ""}:
+            try:
+                selected_backend = InferenceBackend(raw_backend)
+            except ValueError as exc:
+                allowed = ", ".join(item.value for item in InferenceBackend)
+                raise ValueError(f"Unsupported AOI_INFERENCE_BACKEND: {raw_backend}. Expected: {allowed}") from exc
+        raw_model = model_path if model_path is not None else os.getenv("AOI_MODEL_PATH")
+        raw_metadata = metadata_path if metadata_path is not None else os.getenv("AOI_MODEL_METADATA_PATH")
+        raw_imgsz = imgsz if imgsz is not None else os.getenv("AOI_MODEL_IMGSZ", "1280")
+        raw_conf = conf if conf is not None else os.getenv("AOI_MODEL_CONF", "0.25")
+        try:
+            parsed_imgsz = int(raw_imgsz)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("AOI_MODEL_IMGSZ must be a positive integer") from exc
+        try:
+            parsed_conf = float(raw_conf)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("AOI_MODEL_CONF must be between 0 and 1") from exc
+        if parsed_imgsz <= 0:
+            raise ValueError("AOI_MODEL_IMGSZ must be a positive integer")
+        if not 0 <= parsed_conf <= 1:
+            raise ValueError("AOI_MODEL_CONF must be between 0 and 1")
+        return cls(
+            backend=selected_backend,
+            model_path=Path(raw_model) if raw_model else None,
+            metadata_path=Path(raw_metadata) if raw_metadata else None,
+            device=device or os.getenv("AOI_MODEL_DEVICE", "cpu"),
+            imgsz=parsed_imgsz,
+            conf=parsed_conf,
         )

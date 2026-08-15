@@ -9,10 +9,12 @@ from app.api.routes.health import router as health_router
 from app.api.routes.handler import router as handler_router
 from app.api.routes.operations import router as operations_router
 from app.clients.agent_rag import AgentRagClient
-from app.config import RuntimeSettings
+from app.config import InferenceSettings, RuntimeSettings
 from app.db import create_session_factory
 from app.models import Base
 from app.models import InspectionEvent
+from app.inference.base import InferenceAdapter
+from app.inference.factory import build_inference_adapter
 from app.services.demo_data import reset_demo
 
 
@@ -24,6 +26,7 @@ def create_app(
     auto_pass_enabled: bool | str | None = None,
     handler_integration_enabled: bool | str | None = None,
     image_root: str | Path | None = None,
+    inference_adapter: InferenceAdapter | None = None,
 ) -> FastAPI:
     app = FastAPI(title="PIS-IN AOI AI", version="3.5")
     settings = RuntimeSettings.from_values(
@@ -36,6 +39,11 @@ def create_app(
     app.state.mode = settings.mode.value
     app.state.auto_pass_enabled = settings.auto_pass_enabled
     app.state.handler_integration_enabled = settings.handler_integration_enabled
+    inference_settings = InferenceSettings.from_values()
+    app.state.inference_settings = inference_settings
+    app.state.inference_adapter = inference_adapter or build_inference_adapter(
+        settings.mode, inference_settings
+    )
     configured_image_root = image_root or os.getenv("AOI_IMAGE_ROOT", "./aoi-images-disabled")
     app.state.image_root = Path(configured_image_root).resolve()
     app.state.session_factory = create_session_factory(app.state.database_url)

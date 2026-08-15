@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.main import create_app
+from app.inference.base import Detection, InferenceOutput, InferenceRequest
+from app.inference.factory import UnavailableInferenceAdapter
 from app.models import Attachment, InferenceResult, InspectionEvent, QuarantineEvent
 from app.api.routes import operations
 from tests.image_fixtures import make_pis_in_payload, write_image
@@ -353,7 +355,90 @@ def test_pis_in_import_forces_review_outside_demo(
 
         assert response.status_code == 201
         assert response.json()["decision"] == "REVIEW"
-        assert response.json()["reason_code"] == "LOW_CONFIDENCE"
+        assert response.json()["reason_code"] == "MODEL_UNAVAILABLE"
+    finally:
+        shutil.rmtree(case_dir, ignore_errors=True)
+
+
+def test_pis_in_import_forwards_images_and_persists_all_detections() -> None:
+    case_dir = Path(__file__).parents[3] / "tmp" / "image-adapter-cases" / uuid4().hex
+    case_dir.mkdir(parents=True)
+
+    class RecordingAdapter:
+        model_version = "recording-v1"
+
+        def __init__(self) -> None:
+            self.requests: list[InferenceRequest] = []
+
+        def predict(self, request: InferenceRequest) -> InferenceOutput:
+            self.requests.append(request)
+            detections = (
+                Detection(1, 2, 10, 20, 0, "BALL_BRIDGE", 0.91),
+                Detection(4, 5, 10, 20, 6, "FOREIGN_MATERIAL", 0.80),
+            )
+            return InferenceOutput(
+                model_version=self.model_version,
+                normal_confidence=0.0,
+                defect_score=0.91,
+                defect_code="BALL_BRIDGE",
+                detections=detections,
+                latency_ms=12,
+            )
+
+    adapter = RecordingAdapter()
+    image_path = case_dir / "board.jpg"
+    payload = make_pis_in_payload(image_path, write_image(image_path), scenario="DEFECT")
+    app = create_app(
+        database_url="sqlite+pysqlite:///:memory:",
+        mode="demo",
+        image_root=case_dir,
+        inference_adapter=adapter,
+    )
+    try:
+        with TestClient(app) as client:
+            response = client.post("/api/v1/inspections/import/pis-in", json=payload)
+
+        assert response.status_code == 201
+        assert response.json()["defect_code"] == "BALL_BRIDGE"
+        assert tuple(image.light_id for image in adapter.requests[0].images) == ("R", "G", "B", "RING")
+        assert all(image.path.is_file() for image in adapter.requests[0].images)
+        with app.state.session_factory() as session:
+            stored = session.scalar(select(InferenceResult))
+            assert stored is not None
+            assert len(stored.defect_bbox) == 2
+            assert set(stored.defect_bbox[0]) == {
+                "x", "y", "w", "h", "class_id", "defect_code", "confidence"
+            }
+    finally:
+        shutil.rmtree(case_dir, ignore_errors=True)
+
+
+def test_unavailable_inference_persists_auditable_review() -> None:
+    case_dir = Path(__file__).parents[3] / "tmp" / "image-adapter-cases" / uuid4().hex
+    case_dir.mkdir(parents=True)
+    image_path = case_dir / "board.jpg"
+    payload = make_pis_in_payload(image_path, write_image(image_path), scenario="NORMAL")
+    app = create_app(
+        database_url="sqlite+pysqlite:///:memory:",
+        mode="shadow",
+        image_root=case_dir,
+        inference_adapter=UnavailableInferenceAdapter("fc-bga-requested-v1"),
+    )
+    try:
+        with TestClient(app) as client:
+            response = client.post("/api/v1/inspections/import/pis-in", json=payload)
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body["decision"] == "REVIEW"
+        assert body["reason_code"] == "MODEL_UNAVAILABLE"
+        assert body["defect_code"] is None
+        assert body["attachment_count"] == 4
+        with app.state.session_factory() as session:
+            stored = session.scalar(select(InferenceResult))
+            assert stored is not None
+            assert stored.model_version == "fc-bga-requested-v1"
+            assert stored.defect_bbox == []
     finally:
         shutil.rmtree(case_dir, ignore_errors=True)
 

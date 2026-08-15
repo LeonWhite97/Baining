@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.config import RuntimeMode, RuntimeSettings
+from app.config import InferenceBackend, InferenceSettings, RuntimeMode, RuntimeSettings
 from app.main import create_app
 from app.schemas.handler import AOIStartRequest
 
@@ -40,3 +40,19 @@ def test_auto_pass_defaults_disabled() -> None:
     assert settings.mode is RuntimeMode.SHADOW
     assert settings.auto_pass_enabled is False
     assert settings.handler_integration_enabled is False
+
+
+def test_inference_settings_validate_numeric_bounds() -> None:
+    settings = InferenceSettings.from_values(imgsz="1280", conf="0.25")
+    assert settings.backend is None
+    assert settings.imgsz == 1280
+    assert settings.conf == 0.25
+
+    with pytest.raises(ValueError, match="AOI_MODEL_IMGSZ"):
+        InferenceSettings.from_values(imgsz="0")
+    with pytest.raises(ValueError, match="AOI_MODEL_CONF"):
+        InferenceSettings.from_values(conf="1.1")
+
+
+def test_inference_backend_values_are_explicit() -> None:
+    assert {item.value for item in InferenceBackend} == {"demo", "ultralytics", "tensorrt"}

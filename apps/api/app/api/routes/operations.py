@@ -16,7 +16,7 @@ from app.adapters.pis_in import IdentityUnavailable, PisInSourceAdapter
 from app.domain.source_key import SourceKeyParts, generate_source_key_hash
 from app.models import AnomalyReport, InferenceResult, InspectionEvent, ModelRelease, ReviewRecord, StationAlert
 from app.models import Attachment, QuarantineEvent
-from app.inference.demo import DemoInferenceAdapter
+from app.inference.base import InferenceImage
 from app.services.inference_orchestrator import run_inference
 from app.services.image_evidence import EvidenceValidationError, ValidatedImage, validate_image_set
 from app.services.alerting import evaluate_station_alert
@@ -220,7 +220,7 @@ def create_inspection(payload: InspectionIn, response: Response, session: Sessio
 
 
 @router.post("/inspections/import/pis-in")
-def import_pis_in(raw: dict[str, object], response: Response, session: Session = Depends(get_session)) -> dict[str, object]:
+def import_pis_in(raw: dict[str, object], request: Request, response: Response, session: Session = Depends(get_session)) -> dict[str, object]:
     adapter = PisInSourceAdapter()
     try:
         normalized = adapter.normalize(raw)
@@ -263,7 +263,24 @@ def import_pis_in(raw: dict[str, object], response: Response, session: Session =
     event_uuid = str(uuid5(NAMESPACE_URL, f"pis-in:{normalized.source_key_hash}"))
     scenario = str(raw.get("Scenario", "REVIEW")) if session.info["mode"] == "demo" else "REVIEW"
     input_complete = scenario not in {"MISSING_3D", "MISSING_LIGHT"} and len(normalized.attachments) >= 4
-    output = run_inference(DemoInferenceAdapter(), event_uuid=event_uuid, scenario=scenario, input_complete=input_complete)
+    inference_images = tuple(
+        InferenceImage(
+            light_id=item.light_id,
+            path=item.path,
+            sha256=item.sha256,
+            width=item.width,
+            height=item.height,
+            media_type=item.media_type,
+        )
+        for item in validated_images
+    )
+    output = run_inference(
+        request.app.state.inference_adapter,
+        event_uuid=event_uuid,
+        scenario=scenario,
+        input_complete=input_complete,
+        images=inference_images,
+    )
     event = InspectionEvent(
         event_uuid=event_uuid, source_key_hash=normalized.source_key_hash, device_id=normalized.device_id,
         device_session_id=normalized.device_session_id, inspection_sequence=normalized.inspection_sequence,
@@ -284,7 +301,18 @@ def import_pis_in(raw: dict[str, object], response: Response, session: Session =
             event_uuid=event_uuid, model_version=inference_output.model_version, policy_version="policy-3.5.1",
             input_fingerprint=normalized.source_key_hash, inference_mode=output.mode.value, ai_decision=output.decision,
             ai_confidence=output.confidence, defect_code=output.defect_code,
-            defect_bbox=[{"x": box[0], "y": box[1], "w": box[2], "h": box[3]} for box in inference_output.boxes],
+            defect_bbox=[
+                {
+                    "x": item.x,
+                    "y": item.y,
+                    "w": item.w,
+                    "h": item.h,
+                    "class_id": item.class_id,
+                    "defect_code": item.defect_code,
+                    "confidence": item.confidence,
+                }
+                for item in inference_output.detections
+            ],
             measures_3d={}, inference_latency_ms=inference_output.latency_ms,
         ))
         session.commit()
