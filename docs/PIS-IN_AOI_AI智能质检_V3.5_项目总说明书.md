@@ -4,7 +4,7 @@
 
 项目周期为 2024.09-2025.01，8 人按阶段参与。当前采用 AOI 工控机单机独立运行模式，不接入自动化 Handler：操作员或本机 AOI 软件触发检测，PIS-IN 在本机完成 R/G/B/RING 图像采集，AI 服务完成数据关联、推理、复核与报表闭环。MES 可作为异步数据接收方，但不参与本地实时检测决策。
 
-本版交付定位为“可运行 PoC + 数据适配层 + 生产门禁基线”。仓库当前没有真实 AOI 图片、标注集和 YOLO 权重，因此真实精度、现场 P95、持续吞吐和生产误报率必须通过现场数据审计与盲测确认。
+本版交付定位为“可运行 PoC + 数据适配层 + 生产门禁基线”。仓库已包含 FC-BGA YOLOv8 数据转换、校验、去重、下载、训练、预测、导出脚本，以及可校验模型元数据的 Ultralytics 推理适配器；但仍没有正式四光源 AOI 图片、7 类标注集、训练权重或 TensorRT Engine。因此真实精度、现场 P95、持续吞吐、生产误报率和漏放率必须通过现场数据审计与盲测确认。
 
 ## 2. 核心业务流程
 
@@ -25,7 +25,7 @@ flowchart LR
 ## 3. 功能模块
 
 1. **数据关联层**：`DeviceID + DeviceSessionID + InspectionSequence + TrayID + SlotIndex + Surface` 生成规范化 SHA-256 Source Key；R/G/B/RING 作为附件属性汇聚到同一 `event_uuid`。
-2. **推理与决策层**：Demo/TensorRT 可替换适配器、3D 规则和 PASS/FAIL/REVIEW 三态决策；输入不完整或身份异常默认 REVIEW。
+2. **推理与决策层**：Demo、Ultralytics、TensorRT 可替换适配器，模型包哈希/类别/输入契约校验，3D 规则和 PASS/FAIL/REVIEW 三态决策；输入不完整、模型不可用或身份异常默认 REVIEW。
 3. **质量运营层**：缺陷分类、滑动窗口工站预警、告警确认、DRAFT 异常报告、复核回写和模型治理。
 4. **Agent/RAG 层**：数据质量 Agent、复核与异常报告 Agent、模型治理 Agent；PostgreSQL + pgvector 保存缺陷字典、SOP、设备手册、历史异常与发布说明。
 5. **展示层**：总览、实时检测、Tray Map、人工复核、缺陷报表、预警与报告、模型治理、项目说明 8 个页面。
@@ -45,7 +45,7 @@ flowchart LR
 |---|---|---|
 | 前端 | React 18、TypeScript、Vite、ECharts、Lucide | `apps/web/src` |
 | API | FastAPI、Pydantic、SQLAlchemy 2、Alembic | `apps/api/app` |
-| 推理 | YOLOv8 基线、ONNX/TensorRT 替换接口、Demo adapter | `apps/api/app/inference` |
+| 推理 | YOLOv8 训练工具、ONNX/TensorRT 导出入口、Demo/Ultralytics/TensorRT adapter | `tools/vision/fc_bga_yolo`、`apps/api/app/inference` |
 | 数据库 | PostgreSQL 16、pgvector；本地测试 SQLite | `apps/api/app/models`、`services/agent-rag` |
 | 治理 | 3 个 Agent、确定性 Provider、证据引用 RAG | `services/agent-rag/agent_rag` |
 | 部署 | Docker Compose、Nginx、GPU overlay、健康检查 | `infra` |
@@ -55,7 +55,7 @@ flowchart LR
 - 负责把误报、漏放、REVIEW、P95、吞吐和静默错配率拆解为可测试、可验收的产品与技术指标。
 - 设计 Source Key、附件汇聚、状态机、隔离区和数据库幂等约束，解决多光源、3D、AOI 结果乱序、重复和身份缺失问题。
 - 推动 FastAPI、YOLOv8/TensorRT 适配边界、三态决策、人工复核、缺陷报表、预警和 Agent/RAG 故障隔离落地。
-- 完成可运行单机 PoC：当前 API 63 条、Agent/RAG 6 条、simulator 2 条测试通过；前端具备 8 个业务页面，Compose 可启动并通过健康检查。
+- 完成可运行单机 PoC：API、Agent/RAG、simulator、FC-BGA 训练工具和前端均具备自动化测试；前端具备 8 个业务页面，Compose 保留健康检查与 GPU-free 演示路径。
 - 明确事实边界：当前交付证明软件链路、部署和安全门禁可复现，不把缺少真实图片、权重、TensorRT Engine 和连续生产样本的指标写成生产实绩。
 
 ## 7. 质量目标口径

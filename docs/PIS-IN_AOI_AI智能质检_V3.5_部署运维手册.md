@@ -25,11 +25,15 @@ docker compose -f infra/docker-compose.yml up -d --no-build
 Invoke-WebRequest http://localhost:8080/api/v1/health
 ```
 
-`.env` 必须保持 `HANDLER_INTEGRATION_ENABLED=false`。基础模式不请求 GPU；没有 CUDA、TensorRT 或真实权重时，`DemoInferenceAdapter` 提供确定性结果，Agent/RAG 使用确定性 embedding 和 Provider。
+`.env` 必须保持 `HANDLER_INTEGRATION_ENABLED=false`。基础模式不请求 GPU，且 `APP_MODE=demo`、`AOI_INFERENCE_BACKEND=demo` 时由 `DemoInferenceAdapter` 提供确定性结果，Agent/RAG 使用确定性 embedding 和 Provider。Demo 后端不能用于 shadow/controlled；非 Demo 模式未配置真实模型时必须记录 `MODEL_UNAVAILABLE` 并进入 REVIEW。
 
 当前验证环境为 Docker Desktop 4.84 / Compose 5.3.1。该版本在中文工作区同时构建多个 Compose 服务时可能触发多目标 Bake gRPC 会话异常，因此手册采用逐服务构建；镜像构建完成后再使用 `up -d --no-build` 启动。若现场版本已验证不存在该问题，可简化为 `docker compose -f infra/docker-compose.yml up -d --build`。
 
 单机正式联调建议使用 `APP_MODE=shadow`，此时 AI 只记录建议，最终结果由人工复核确认。只有真实数据盲测、回滚演练和质量审批全部通过后，才可使用 `APP_MODE=controlled` 与 `AUTO_PASS_ENABLED=true`。Handler 路由即使处于 `shadow/controlled`，也只有显式设置 `HANDLER_INTEGRATION_ENABLED=true` 才会注册。
+
+Ultralytics shadow 联调需在 API 环境安装 `apps/api[vision]`，并设置 `AOI_INFERENCE_BACKEND=ultralytics`、`AOI_MODEL_PATH`、`AOI_MODEL_METADATA_PATH`、`AOI_MODEL_DEVICE`、`AOI_MODEL_IMGSZ` 和 `AOI_MODEL_CONF`。模型元数据、固定 7 类顺序、`rgb_grayscale_stack_v1` 和权重 SHA-256 任一不匹配均 fail-closed。详细训练与导出命令见 `tools/vision/fc_bga_yolo/README.md`。
+
+首版真实适配器把 `normal_confidence` 固定为 0；无框或低分输出只能 REVIEW，不能自动 PASS。R/G/B 灰度三通道堆叠是待现场对照实验验证的输入方案，当前没有同机位现场样本证明其优于单光源或其他融合方式。
 
 ## 3. GPU overlay
 
