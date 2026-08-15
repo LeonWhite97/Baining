@@ -1,0 +1,25 @@
+[
+  {
+    "name": "BGA RAM Chips Detection",
+    "url": "https://universe.roboflow.com/paween/bga-ram-chips-detection-t3cqn",
+    "license": "CC BY 4.0",
+    "version": 1,
+    "purpose": "public_smoke",
+    "default_download": true
+  },
+  {
+    "name": "BGA-Balls",
+    "url": "https://universe.roboflow.com/kenshin-blirtz/bga-balls-3ihxj",
+    "license": "CC BY 4.0",
+    "purpose": "segmentation_reference",
+    "default_download": false
+  },
+  {
+    "name": "Void detection on X-ray",
+    "url": "https://universe.roboflow.com/pcbdefectdetection-2qt8g/void-detection-on-x-ray-s8gso",
+    "license": "CC BY 4.0",
+    "purpose": "xray_reference",
+    "default_download": false
+  }
+]
+

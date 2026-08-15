@@ -1,0 +1,6 @@
+ultralytics>=8.3,<9
+pillow>=11.3,<12
+PyYAML>=6,<7
+roboflow>=1.1,<2
+pytest>=8,<9
+
