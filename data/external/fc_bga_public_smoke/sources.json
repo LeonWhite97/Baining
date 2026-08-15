@@ -20,5 +20,26 @@
     "license": "CC BY 4.0",
     "purpose": "xray_reference",
     "default_download": false
+  },
+  {
+    "name": "DeepPCB",
+    "url": "https://github.com/tangsanli5201/DeepPCB",
+    "license": "research-purpose notice in upstream README",
+    "purpose": "pcb_defect_reference",
+    "default_download": false
+  },
+  {
+    "name": "PCB Component Detection Consolidated Dataset",
+    "url": "https://www.kaggle.com/datasets/aryanstein/pcb-component-detection-consolidated-dataset/data",
+    "license": "Apache 2.0 as listed by Kaggle",
+    "purpose": "pcb_component_yolo_reference",
+    "default_download": false
+  },
+  {
+    "name": "FPIC / FICS-PCB Image Collection",
+    "url": "https://physicaldb.ece.ufl.edu/index.php/fics-pcb-image-collection-fpic/",
+    "license": "unknown until provider terms are confirmed",
+    "purpose": "pcb_aoi_context_reference",
+    "default_download": false
   }
 ]

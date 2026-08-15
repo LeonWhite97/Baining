@@ -94,6 +94,8 @@ python tools/vision/fc_bga_yolo/train.py --config tools/vision/fc_bga_yolo/confi
 
 The dataset's `OK/NG` labels are separate from the formal seven-class contract. Smoke training validates its actual checkpoint names but never writes a deployable seven-class `model_metadata.json`.
 
+For additional public substitute sources, use boundaries, and manual download commands, see `data/external/fc_bga_public_smoke/public_alternatives.md`.
+
 ## Formal Fine-tuning
 
 Download the official starting weight and run preflight before GPU work:
