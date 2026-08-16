@@ -2,15 +2,38 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from hashlib import sha256
 import json
 from pathlib import Path
 import shutil
 from typing import Callable
 
+try:
+    from .artifact_manifest import (
+        ArtifactRecord,
+        capture_artifact_record,
+        load_artifact_records,
+        verify_artifact_record,
+        write_artifact_records,
+    )
+except ImportError:
+    from artifact_manifest import (
+        ArtifactRecord,
+        capture_artifact_record,
+        load_artifact_records,
+        verify_artifact_record,
+        write_artifact_records,
+    )
+
 
 MIN_WEIGHT_BYTES = 1024 * 1024
 DEFAULT_MODELS = ("yolov8n.pt", "yolov8s.pt")
+OFFICIAL_MODEL_URLS = {
+    "yolov8n.pt": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8n.pt",
+    "yolov8s.pt": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8s.pt",
+}
+ULTRALYTICS_LICENSE_URL = "https://www.ultralytics.com/license"
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,16 +84,49 @@ def prepare_models(
     *,
     force: bool,
     downloader: Callable[..., WeightInfo] = download_model,
+    manifest_path: Path | None = None,
+    max_attempts: int = 3,
 ) -> tuple[WeightInfo, ...]:
     if not model_names or len(set(model_names)) != len(model_names):
         raise ValueError("models must be a non-empty unique list")
+    if not 1 <= max_attempts <= 3:
+        raise ValueError("OFFICIAL_DOWNLOAD_ATTEMPTS_INVALID")
+    baselines: dict[str, ArtifactRecord] = {}
+    if manifest_path is not None and manifest_path.is_file():
+        baselines = {record.name: record for record in load_artifact_records(manifest_path)}
     infos: list[WeightInfo] = []
     for model_name in model_names:
         target = destination / model_name
         if target.is_file() and not force:
-            infos.append(verify_weight(target))
+            info = verify_weight(target)
+            if manifest_path is not None:
+                baseline = baselines.get(model_name)
+                if baseline is None:
+                    raise ValueError("ARTIFACT_BASELINE_UNAVAILABLE")
+                verify_artifact_record(target, baseline)
+            infos.append(info)
         else:
-            infos.append(downloader(model_name, destination, force=force))
+            if manifest_path is not None and model_name not in OFFICIAL_MODEL_URLS:
+                raise ValueError("OFFICIAL_MODEL_UNKNOWN")
+            last_error: Exception | None = None
+            for _ in range(max_attempts):
+                try:
+                    info = downloader(model_name, destination, force=force)
+                    break
+                except Exception as exc:
+                    last_error = exc
+            else:
+                raise RuntimeError("OFFICIAL_DOWNLOAD_FAILED") from last_error
+            infos.append(info)
+            if manifest_path is not None:
+                record = capture_artifact_record(
+                    info.path,
+                    source_url=OFFICIAL_MODEL_URLS[model_name],
+                    license_url=ULTRALYTICS_LICENSE_URL,
+                    retrieved_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                )
+                baselines[model_name] = record
+                write_artifact_records(manifest_path, tuple(baselines.values()))
     return tuple(infos)
 
 
@@ -88,7 +144,12 @@ def main() -> int:
         infos = (verify_weight(args.verify_only),)
     else:
         names = tuple(args.models or args.model_aliases or DEFAULT_MODELS)
-        infos = prepare_models(names, args.destination, force=args.force)
+        infos = prepare_models(
+            names,
+            args.destination,
+            force=args.force,
+            manifest_path=args.destination / "artifact-manifest.json",
+        )
     output = [{**asdict(info), "path": str(info.path)} for info in infos]
     print(json.dumps(output[0] if len(output) == 1 else output, sort_keys=True))
     return 0

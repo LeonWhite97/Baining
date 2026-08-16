@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from tools.vision.fc_bga_yolo.artifact_manifest import load_artifact_records
 from tools.vision.fc_bga_yolo.download_models import prepare_models, verify_weight
 from tools.vision.fc_bga_yolo.download_public_smoke import (
     RoboflowDownloader,
@@ -157,3 +158,69 @@ def test_prepare_models_skips_valid_existing_weight_unless_forced(tmp_path: Path
 
     assert [info.path.name for info in infos] == ["yolov8n.pt", "yolov8s.pt"]
     assert calls == [("yolov8s.pt", False)]
+
+
+def test_prepare_models_records_and_reuses_verified_baseline(tmp_path: Path) -> None:
+    destination = tmp_path / "pretrained"
+    manifest = destination / "artifact-manifest.json"
+    calls: list[str] = []
+
+    def downloader(model_name: str, output: Path, *, force: bool) -> object:
+        calls.append(model_name)
+        output.mkdir(parents=True, exist_ok=True)
+        target = output / model_name
+        target.write_bytes(b"x" * (1024 * 1024))
+        return verify_weight(target)
+
+    first = prepare_models(
+        ("yolov8n.pt",),
+        destination,
+        force=False,
+        downloader=downloader,
+        manifest_path=manifest,
+    )
+    second = prepare_models(
+        ("yolov8n.pt",),
+        destination,
+        force=False,
+        downloader=downloader,
+        manifest_path=manifest,
+    )
+
+    assert second == first
+    assert calls == ["yolov8n.pt"]
+    assert load_artifact_records(manifest)[0].sha256 == first[0].sha256
+
+
+def test_prepare_models_rejects_cache_without_baseline(tmp_path: Path) -> None:
+    destination = tmp_path / "pretrained"
+    destination.mkdir()
+    (destination / "yolov8n.pt").write_bytes(b"x" * (1024 * 1024))
+
+    with pytest.raises(ValueError, match="ARTIFACT_BASELINE_UNAVAILABLE"):
+        prepare_models(
+            ("yolov8n.pt",),
+            destination,
+            force=False,
+            manifest_path=destination / "artifact-manifest.json",
+        )
+
+
+def test_prepare_models_stops_after_three_failed_attempts(tmp_path: Path) -> None:
+    calls = 0
+
+    def failing_downloader(model_name: str, output: Path, *, force: bool) -> object:
+        nonlocal calls
+        calls += 1
+        raise OSError("network unavailable")
+
+    with pytest.raises(RuntimeError, match="OFFICIAL_DOWNLOAD_FAILED"):
+        prepare_models(
+            ("yolov8n.pt",),
+            tmp_path / "pretrained",
+            force=False,
+            downloader=failing_downloader,
+            manifest_path=tmp_path / "artifact-manifest.json",
+            max_attempts=3,
+        )
+    assert calls == 3
