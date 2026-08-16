@@ -1,4 +1,4 @@
-path: ../../../../data/vision/fc_bga_defects
+path: data/vision/fc_bga_defects
 train: train/images
 val: val/images
 test: test/images

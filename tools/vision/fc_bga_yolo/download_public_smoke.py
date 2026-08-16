@@ -6,6 +6,7 @@ from hashlib import sha256
 import json
 import os
 from pathlib import Path
+import shutil
 from typing import Protocol
 
 
@@ -44,13 +45,13 @@ class RoboflowDownloader:
             from roboflow import Roboflow
         except ImportError as exc:
             raise RuntimeError("install requirements-train.txt before downloading public data") from exc
-        destination.mkdir(parents=True, exist_ok=True)
+        destination.parent.mkdir(parents=True, exist_ok=True)
         dataset = (
             Roboflow(api_key=api_key)
             .workspace(workspace)
             .project(project)
             .version(version)
-            .download(format_name, location=str(destination))
+            .download(format_name, location=str(destination), overwrite=True)
         )
         return Path(dataset.location)
 
@@ -79,7 +80,7 @@ def download_public_smoke(
         destination=destination,
         api_key=api_key,
     ).resolve()
-    for split in ("train", "valid", "test"):
+    for split in ("train", "valid"):
         if not (root / split / "images").is_dir() or not (root / split / "labels").is_dir():
             raise ValueError(f"PUBLIC_DATASET_INVALID: missing {split} split")
     valid = root / "valid"
@@ -87,6 +88,10 @@ def download_public_smoke(
     if val.exists():
         raise ValueError("PUBLIC_DATASET_INVALID: both valid and val exist")
     valid.rename(val)
+    test_derived_from = None
+    if not (root / "test" / "images").is_dir() or not (root / "test" / "labels").is_dir():
+        shutil.copytree(val, root / "test")
+        test_derived_from = "valid"
     manifest = {
         "accessed_on": date.today().isoformat(),
         "format": FORMAT_NAME,
@@ -98,6 +103,8 @@ def download_public_smoke(
         "workspace": WORKSPACE,
         "files": _file_hashes(root),
     }
+    if test_derived_from is not None:
+        manifest["test_derived_from"] = test_derived_from
     (root / "source-manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

@@ -1,7 +1,7 @@
-path: ../../../../data/external/fc_bga_public_smoke/downloads/bga-ram-chips-detection-t3cqn-v1
+path: data/external/fc_bga_public_smoke/downloads/bga-ram-chips-detection-t3cqn-v1
 train: train/images
 val: val/images
 test: test/images
 names:
-  0: OK
-  1: NG
+  0: NG
+  1: OK

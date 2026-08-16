@@ -161,6 +161,25 @@ def _data_document(data_yaml: Path) -> dict[str, object]:
     return document
 
 
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def _resolve_dataset_root(data_yaml: Path, root_value: str) -> Path:
+    root_path = Path(root_value)
+    if root_path.is_absolute():
+        return root_path.resolve()
+    candidates = (
+        (data_yaml.parent / root_path).resolve(),
+        (Path.cwd() / root_path).resolve(),
+        (_repo_root() / root_path).resolve(),
+    )
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
 def _formal_dataset_root(data_yaml: Path) -> tuple[Path, Path]:
     document = _data_document(data_yaml)
     root_value = document.get("path") if isinstance(document, dict) else None
@@ -177,7 +196,7 @@ def _formal_dataset_root(data_yaml: Path) -> tuple[Path, Path]:
         raise ValueError("DATA_CLASS_MISMATCH") from exc
     if names != DEFECT_NAMES:
         raise ValueError("DATA_CLASS_MISMATCH")
-    root = (data_yaml.parent / root_value).resolve()
+    root = _resolve_dataset_root(data_yaml, root_value)
     manifest = root / "manifest.jsonl"
     if not manifest.is_file():
         raise ValueError("DATASET_INVALID: MANIFEST_UNAVAILABLE")

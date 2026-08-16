@@ -10,6 +10,8 @@ apps/web/test-results/
 **/.pytest_cache/
 *.pyc
 tmp/
+.venv-yolo/
+runs/
 
 .env
 .idea/

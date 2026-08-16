@@ -6,6 +6,7 @@ from types import ModuleType, SimpleNamespace
 
 from PIL import Image
 import pytest
+import yaml
 
 from dataclasses import replace
 
@@ -17,6 +18,7 @@ from tools.vision.fc_bga_yolo.train import (
     check_training_settings,
     load_training_settings,
     run_training,
+    _resolve_dataset_root,
 )
 
 
@@ -79,6 +81,22 @@ def test_smoke_profile_is_separate_from_formal_training() -> None:
     assert settings.profile == "public_smoke"
     assert settings.model.endswith("weights/pretrained/yolov8n.pt")
     assert settings.epochs == 3
+
+
+def test_public_smoke_class_order_matches_pinned_roboflow_source() -> None:
+    config = yaml.safe_load(Path("tools/vision/fc_bga_yolo/configs/public_smoke.yaml").read_text())
+    assert config["names"] == {0: "NG", 1: "OK"}
+
+
+def test_public_smoke_path_is_repo_root_relative_for_ultralytics() -> None:
+    config = yaml.safe_load(Path("tools/vision/fc_bga_yolo/configs/public_smoke.yaml").read_text())
+    assert config["path"] == "data/external/fc_bga_public_smoke/downloads/bga-ram-chips-detection-t3cqn-v1"
+
+
+def test_formal_dataset_root_accepts_repo_root_relative_path() -> None:
+    data_yaml = Path("tools/vision/fc_bga_yolo/configs/fc_bga_defects.template.yaml")
+    root = _resolve_dataset_root(data_yaml, "data/vision/fc_bga_defects")
+    assert root == (Path.cwd() / "data/vision/fc_bga_defects").resolve()
 
 
 def test_train_kwargs_are_explicit_and_reproducible() -> None:
