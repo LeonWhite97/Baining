@@ -17,6 +17,7 @@ runs/
 .idea/
 .superpowers/
 .workbuddy/
+.worktrees/
 **/.test-tmp/
 
 data/external/fc_bga_public_smoke/downloads/
