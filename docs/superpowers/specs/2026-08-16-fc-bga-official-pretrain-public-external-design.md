@@ -99,7 +99,7 @@ Only sources with clear redistribution or training permission and a stable versi
 
 Manufacturer case studies, research-paper figures, search-engine thumbnails, and images with unclear terms may inform visual understanding but do not enter the training dataset without explicit reuse permission.
 
-The first acquisition pass targets 30 to 50 candidate images. Seven-class public external training starts only after at least 20 images pass review and at least two defect classes have accepted visible evidence.
+Acquire candidates in reviewed batches. The first batch targets 30 to 50 images. If fewer than 20 pass review, continue only through other approved, license-verifiable sources up to a maximum of 100 candidates. If the accepted set still has fewer than 20 images or fewer than two defect classes with visible evidence, publish a coverage-shortfall report and keep Stage B0 blocked. Do not weaken annotation rules to satisfy the count.
 
 ## Quality Control and Splitting
 
@@ -119,6 +119,16 @@ Train, validation, and test splits must all be nonempty. Exact duplicates, group
 
 ## Training Design
 
+### Hardware Preflight
+
+Before each training stage, record the PyTorch build, CUDA availability, visible device count, selected device, available GPU memory when applicable, CPU model, and calibration-run duration.
+
+Use CUDA device `0` when `torch.cuda.is_available()` is true and the installed PyTorch/Ultralytics stack can complete a one-batch train and validation probe. Otherwise use CPU as an explicit fallback. Keep `workers=0` as the reliable Windows baseline; a higher worker count may be selected only after a measured loader probe completes without process-spawn or DLL errors.
+
+Run a three-epoch calibration with the target image size and batch before a longer CPU job. Estimate the full run from measured wall-clock time. If the projected local run exceeds two hours, stop after calibration and emit the verified GPU command instead of automatically starting the long run. When the same configuration continues locally, resume from the calibration checkpoint so those three epochs are not repeated.
+
+The current host measurement is contextual evidence, not a permanent estimate: the CPU-only environment completed 20 epochs over 39 images at image size 320 in 330.451 seconds, or 16.52 seconds per epoch. Every new dataset and image size must be calibrated independently.
+
 ### Stage A: Official Pretrain Smoke Training
 
 Download official `yolov8n.pt` through the existing model downloader. Require a file size of at least 1 MiB and record the official release URL, content length, retrieval date, and SHA-256 before use. That record becomes the local verification baseline for subsequent downloads.
@@ -129,25 +139,37 @@ Train the existing `public_smoke` dataset with:
 - epochs: 30;
 - patience: 10;
 - batch: 4;
-- device: CPU on the current host;
+- device: hardware preflight selection, preferring CUDA device `0` and falling back to CPU;
 - workers: 0 on the current Windows environment;
 - deterministic seed: 42.
 
 This checkpoint remains `NG`/`OK` public smoke evidence and is not deployable.
 
-### Stage B: Seven-Class Public External Training
+### Stage B0: Seven-Class Workflow Rehearsal
 
-After the public external data gate passes, train from official `yolov8n.pt` with:
+After at least 20 images pass review, at least two classes have accepted evidence, and all quality gates pass, train from official `yolov8n.pt` with:
 
 - image size: 640;
-- epochs: 50;
-- patience: 10;
+- epochs: 10, including the first three calibration epochs;
+- patience: 5;
 - batch: 4;
-- device: CPU on the current host;
+- device: hardware preflight selection, preferring CUDA device `0` and falling back to CPU within the two-hour projected budget;
 - workers: 0;
 - deterministic seed: 42.
 
-Report overall and per-class precision, recall, mAP50, and mAP50-95. A class with no test instances is reported as having no evidence, not as a measured zero or success. The checkpoint remains non-deployable regardless of its public-data metrics.
+Stage B0 verifies only download, provenance, annotation, split, training, and evaluation wiring. Its report must begin with the exact warning: **INSUFFICIENT STATISTICAL EVIDENCE: workflow rehearsal metrics are not model-performance evidence.** Report mAP values as diagnostic output only. The checkpoint remains non-deployable.
+
+### Stage B1: Seven-Class Metric Experiment
+
+The 50-epoch public external experiment remains blocked until all of these additional gates pass:
+
+- at least 100 accepted images;
+- at least three represented defect classes;
+- at least 30 training boxes for every represented class included in metric interpretation;
+- at least 10 test boxes for every represented class included in metric interpretation;
+- no source group, original image, derived crop, or adjacent-frame leakage across splits.
+
+When the gates pass, train from official `yolov8n.pt` at image size 640, 50 epochs, patience 10, batch 4, workers 0, deterministic seed 42, and the hardware-preflight-selected device. Always report image and box denominators beside overall and per-class precision, recall, mAP50, and mAP50-95. If the test split contains at least 30 independent source groups, add a 95% grouped-bootstrap interval using 1,000 resamples over source groups. With fewer than 30 test source groups, omit the interval and retain the insufficient-statistical-evidence warning. A class with no test instances is reported as having no evidence, not as a measured zero or success. Public-data metrics remain non-production evidence and the checkpoint remains non-deployable.
 
 ### Stage C: Future Formal Four-Light Training
 
@@ -155,20 +177,25 @@ Formal training remains gated on 100 to 200 same-camera sample groups, reviewed 
 
 ## Failure Handling
 
-- Retry official downloads at most three times.
+- Prefer a verified local cache before network retrieval. Retry an official network source at most three times.
 - Do not silently switch to an untrusted mirror.
 - Treat a checkpoint smaller than 1 MiB, missing its recorded official-asset baseline, or differing from the recorded content length or SHA-256 as a hard failure.
+- Store permitted offline artifacts outside Git with an artifact manifest containing source URL, source version, retrieval date, license snapshot or license URL, content length, and SHA-256. A cached artifact is usable only when its hash matches the manifest and its recorded license permits the retained copy.
+- When an upstream source disappears, use a matching verified permitted cache. If no such cache exists, mark that source unavailable and select another already-approved source as a new dataset revision; never present the replacement as the missing version.
 - Quarantine sources with unknown licenses or unavailable attribution details.
 - Quarantine ambiguous labels instead of guessing.
 - Stop dataset publication when duplicate, split-leakage, class-order, coordinate, or provenance checks fail.
-- Do not start Stage B when fewer than 20 images pass review or fewer than two classes have accepted evidence.
+- Do not start Stage B0 when fewer than 20 images pass review or fewer than two classes have accepted evidence.
+- Do not start Stage B1 until its image, class, train-box, and test-box gates all pass.
 - Preserve failed-run logs separately and never overwrite a validated run.
 
 ## Outputs and Acceptance
 
 Stage A is accepted when the official checkpoint is verified, 30 training epochs complete or valid early stopping occurs, the test split runs, and the run contains parameters, curves, confusion matrices, `best.pt`, and per-class metrics.
 
-Stage B is accepted when provenance and quality gates pass, all three splits are nonempty and leakage-free, training and test evaluation complete, and the same artifact set is present. Acceptance proves a reproducible public-data PoC workflow, not model suitability for production.
+Stage B0 is accepted when provenance and quality gates pass, all three splits are nonempty and leakage-free, calibration and workflow rehearsal complete within the resource gate, test evaluation completes, the warning is present, and the same artifact set is available. Acceptance proves only a reproducible public-data workflow.
+
+Stage B1 is accepted only when its stronger sample gates pass, training and test evaluation complete, and variability or confidence reporting accompanies interpreted metrics. Acceptance still does not prove suitability for production.
 
 No public checkpoint may generate formal deployable metadata, activate automatic PASS decisions, or support production performance claims.
 
@@ -184,7 +211,8 @@ Implementation verification must include:
 - public smoke dataset validation;
 - public external preflight and dataset report;
 - Stage A test evaluation;
-- Stage B test evaluation when its data gate is satisfied;
+- Stage B0 resource calibration and test evaluation when its workflow gate is satisfied;
+- Stage B1 sample-gate audit and test evaluation only when its stronger metric gate is satisfied;
 - a repository secret scan and clean Git status before push.
 
 ## Repository Delivery
