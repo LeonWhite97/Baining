@@ -1,0 +1,13 @@
+[
+  {
+    "source_id": "roboflow-paween-bga-ram-v1",
+    "name": "BGA RAM Chips Detection",
+    "url": "https://universe.roboflow.com/paween/bga-ram-chips-detection-t3cqn",
+    "version": "1",
+    "license_name": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/legalcode.txt",
+    "license_sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411",
+    "retrieved_at": "2026-08-16T00:00:00Z",
+    "attribution": "BGA RAM Chips Detection by paween, licensed CC BY 4.0"
+  }
+]
