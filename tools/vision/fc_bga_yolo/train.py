@@ -49,6 +49,13 @@ class TrainingSettings:
     name: str
 
 
+@dataclass(frozen=True, slots=True)
+class TrainingArtifacts:
+    save_dir: Path
+    best: Path
+    last: Path
+
+
 def _validate_training_settings(settings: TrainingSettings) -> TrainingSettings:
     if settings.profile not in {"fc_bga", "public_smoke"}:
         raise ValueError("TRAIN_CONFIG_INVALID: profile")
@@ -255,18 +262,42 @@ def build_training_metadata(
     )
 
 
-def run_training(settings: TrainingSettings) -> Path:
+def train_only(
+    settings: TrainingSettings,
+    *,
+    epochs: int | None = None,
+    resume_from: Path | None = None,
+) -> TrainingArtifacts:
     check_training_settings(settings)
     try:
         from ultralytics import YOLO
     except ImportError as exc:
         raise RuntimeError("install requirements-train.txt before training") from exc
-    model = YOLO(settings.model)
-    results = model.train(**build_train_kwargs(settings))
-    best = Path(results.save_dir) / "weights" / "best.pt"
-    if not best.is_file():
-        raise RuntimeError("training completed without weights/best.pt")
-    best_model = YOLO(str(best))
+    if epochs is not None and epochs < 1:
+        raise ValueError("TRAIN_EPOCHS_INVALID")
+    if resume_from is not None and not resume_from.is_file():
+        raise ValueError("TRAIN_RESUME_CHECKPOINT_UNAVAILABLE")
+    model = YOLO(str(resume_from) if resume_from is not None else settings.model)
+    kwargs = build_train_kwargs(settings)
+    if epochs is not None:
+        kwargs["epochs"] = epochs
+    if resume_from is not None:
+        kwargs["resume"] = str(resume_from)
+    results = model.train(**kwargs)
+    save_dir = Path(results.save_dir)
+    best = save_dir / "weights" / "best.pt"
+    last = save_dir / "weights" / "last.pt"
+    if not best.is_file() or not last.is_file():
+        raise RuntimeError("training completed without weights/best.pt and weights/last.pt")
+    return TrainingArtifacts(save_dir=save_dir, best=best, last=last)
+
+
+def evaluate_best(settings: TrainingSettings, artifacts: TrainingArtifacts) -> object:
+    try:
+        from ultralytics import YOLO
+    except ImportError as exc:
+        raise RuntimeError("install requirements-train.txt before training") from exc
+    best_model = YOLO(str(artifacts.best))
     if settings.profile == "fc_bga":
         expected_names = DEFECT_NAMES
     else:
@@ -280,13 +311,13 @@ def run_training(settings: TrainingSettings) -> Path:
         conf=settings.conf,
     )
     result_paths = {
-        "train": str(Path(results.save_dir)),
+        "train": str(artifacts.save_dir),
         "test": str(Path(validation.save_dir)),
     }
     if settings.profile == "fc_bga":
         metadata = build_training_metadata(
             settings,
-            best,
+            artifacts.best,
             result_paths=result_paths,
             runtime_versions={
                 "python": platform.python_version(),
@@ -294,8 +325,14 @@ def run_training(settings: TrainingSettings) -> Path:
                 "ultralytics": importlib.metadata.version("ultralytics"),
             },
         )
-        write_model_metadata(best.parent / "model_metadata.json", metadata)
-    return best
+        write_model_metadata(artifacts.best.parent / "model_metadata.json", metadata)
+    return validation
+
+
+def run_training(settings: TrainingSettings) -> Path:
+    artifacts = train_only(settings)
+    evaluate_best(settings, artifacts)
+    return artifacts.best
 
 
 def main() -> int:

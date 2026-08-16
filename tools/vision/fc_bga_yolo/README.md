@@ -89,10 +89,13 @@ The default public smoke source is Roboflow `paween/bga-ram-chips-detection-t3cq
 $env:ROBOFLOW_API_KEY = "<set-in-your-shell>"
 python tools/vision/fc_bga_yolo/download_public_smoke.py
 python tools/vision/fc_bga_yolo/download_models.py --models yolov8n.pt
-python tools/vision/fc_bga_yolo/train.py --config tools/vision/fc_bga_yolo/configs/train_smoke.yaml
+python tools/vision/fc_bga_yolo/train.py --config tools/vision/fc_bga_yolo/configs/train_smoke.yaml --check-only
+python tools/vision/fc_bga_yolo/run_training_stage.py --stage A --config tools/vision/fc_bga_yolo/configs/train_smoke.yaml --report .test-tmp/training-runs/stage-a-resource-report.json
 ```
 
-The dataset's `OK/NG` labels are separate from the formal seven-class contract. Smoke training validates its actual checkpoint names but never writes a deployable seven-class `model_metadata.json`.
+Stage A starts from the hash-verified official `yolov8n.pt` baseline and uses 640 pixels, 30 total epochs, patience 10, batch 4, workers 0, and seed 42. The runner prefers CUDA device `0`; on CPU it measures three calibration epochs and resumes from `last.pt` only when the projected total remains within 7,200 seconds. A longer projection returns `skipped_runtime` with a GPU command instead of starting the remaining epochs.
+
+The dataset's `OK/NG` labels are separate from the formal seven-class contract. Smoke training validates its actual checkpoint names but never writes a deployable seven-class `model_metadata.json`. Its metrics are workflow evidence only and cannot support FC-BGA production claims.
 
 For additional public substitute sources, use boundaries, and manual download commands, see `data/external/fc_bga_public_smoke/public_alternatives.md`.
 

@@ -2,13 +2,13 @@ profile: public_smoke
 model: tools/vision/fc_bga_yolo/weights/pretrained/yolov8n.pt
 data: tools/vision/fc_bga_yolo/configs/public_smoke.yaml
 imgsz: 640
-epochs: 3
-patience: 3
+epochs: 30
+patience: 10
 batch: 4
-device: cpu
+device: auto
 workers: 0
 seed: 42
 conf: 0.25
 lr0: 0.01
 project: tools/vision/fc_bga_yolo/runs
-name: public_smoke
+name: public_smoke_official_yolov8n

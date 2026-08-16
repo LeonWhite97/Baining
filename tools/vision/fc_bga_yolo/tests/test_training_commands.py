@@ -18,6 +18,7 @@ from tools.vision.fc_bga_yolo.train import (
     check_training_settings,
     load_training_settings,
     run_training,
+    train_only,
     _resolve_dataset_root,
 )
 
@@ -76,11 +77,12 @@ def test_poc_defaults_match_approved_design() -> None:
     assert settings.profile == "fc_bga"
 
 
-def test_smoke_profile_is_separate_from_formal_training() -> None:
+def test_smoke_profile_matches_stage_a_design() -> None:
     settings = load_training_settings(Path("tools/vision/fc_bga_yolo/configs/train_smoke.yaml"))
     assert settings.profile == "public_smoke"
     assert settings.model.endswith("weights/pretrained/yolov8n.pt")
-    assert settings.epochs == 3
+    assert (settings.imgsz, settings.epochs, settings.patience) == (640, 30, 10)
+    assert (settings.batch, settings.device, settings.workers, settings.seed) == (4, "auto", 0, 42)
 
 
 def test_public_smoke_class_order_matches_pinned_roboflow_source() -> None:
@@ -251,6 +253,7 @@ def test_training_rejects_best_checkpoint_with_reordered_classes(
             best = save_dir / "weights" / "best.pt"
             best.parent.mkdir(parents=True)
             best.write_bytes(b"trained-model")
+            (best.parent / "last.pt").write_bytes(b"last-model")
             return SimpleNamespace(save_dir=save_dir)
 
     class ReorderedBestModel:
@@ -272,3 +275,75 @@ def test_training_rejects_best_checkpoint_with_reordered_classes(
 
     with pytest.raises(ValueError, match="MODEL_CLASS_MISMATCH"):
         run_training(settings)
+
+
+def test_train_only_resumes_from_last_checkpoint_with_final_epoch_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    class FakeModel:
+        def __init__(self, model_path: str) -> None:
+            self.model_path = model_path
+
+        def train(self, **kwargs: object) -> object:
+            save_dir = tmp_path / f"segment-{len(calls)}"
+            weights = save_dir / "weights"
+            weights.mkdir(parents=True)
+            (weights / "best.pt").write_bytes(b"best")
+            (weights / "last.pt").write_bytes(b"last")
+            calls.append((self.model_path, kwargs))
+            return SimpleNamespace(save_dir=save_dir)
+
+    fake_ultralytics = ModuleType("ultralytics")
+    fake_ultralytics.YOLO = FakeModel
+    monkeypatch.setitem(sys.modules, "ultralytics", fake_ultralytics)
+    settings = replace(
+        load_training_settings(Path("tools/vision/fc_bga_yolo/configs/train_smoke.yaml")),
+        project=str(tmp_path / "runs"),
+    )
+
+    calibration = train_only(settings, epochs=3)
+    resumed = train_only(settings, epochs=30, resume_from=calibration.last)
+
+    assert calibration.best.is_file() and calibration.last.is_file()
+    assert resumed.best.is_file() and resumed.last.is_file()
+    assert calls[1][0] == str(calibration.last)
+    assert calls[1][1]["resume"] == str(calibration.last)
+    assert calls[1][1]["epochs"] == 30
+
+
+def test_run_training_preserves_best_path_after_independent_evaluation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    save_dir = tmp_path / "run"
+
+    class FakeModel:
+        names = {0: "NG", 1: "OK"}
+
+        def __init__(self, model_path: str) -> None:
+            self.model_path = model_path
+
+        def train(self, **_: object) -> object:
+            weights = save_dir / "weights"
+            weights.mkdir(parents=True)
+            (weights / "best.pt").write_bytes(b"best")
+            (weights / "last.pt").write_bytes(b"last")
+            return SimpleNamespace(save_dir=save_dir)
+
+        def val(self, **_: object) -> object:
+            return SimpleNamespace(save_dir=tmp_path / "test")
+
+    fake_ultralytics = ModuleType("ultralytics")
+    fake_ultralytics.YOLO = FakeModel
+    monkeypatch.setitem(sys.modules, "ultralytics", fake_ultralytics)
+    settings = replace(
+        load_training_settings(Path("tools/vision/fc_bga_yolo/configs/train_smoke.yaml")),
+        project=str(tmp_path / "runs"),
+    )
+
+    best = run_training(settings)
+
+    assert best == save_dir / "weights" / "best.pt"
