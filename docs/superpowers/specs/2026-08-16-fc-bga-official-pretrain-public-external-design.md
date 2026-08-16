@@ -8,6 +8,8 @@ Use an official Ultralytics YOLOv8n pretrained checkpoint to replace the current
 
 This work remains a portfolio/internal PoC. Public images and provisional annotations do not establish same-camera four-light performance, production precision, false-positive rate, escape rate, latency, or customer acceptance.
 
+**Resource boundary:** Stage B1 is a CUDA-dependent metric experiment. When no compatible CUDA device and CUDA-enabled PyTorch build are available, Stage B1 is skipped by design and produces a resource assessment report instead of waiting or attempting an unbounded CPU run. Stage A and Stage B0 retain the measured CPU fallback.
+
 ## Factual Boundaries
 
 The repository has three separate evidence levels:
@@ -117,13 +119,21 @@ Perceptual or crop-related duplicates must be reviewed as a group. The same orig
 
 Train, validation, and test splits must all be nonempty. Exact duplicates, group leakage, unsupported files, invalid boxes, unlicensed accepted samples, and unreviewed accepted labels must each have a count of zero before training.
 
+## Dataset Versioning and Split Regeneration
+
+Every accepted-set change creates a new immutable dataset revision. Stage B0 begins with `public-external-v0.1`. Reaching the Stage B1 gate creates `public-external-v0.2`; later accepted additions increment the minor version again.
+
+Each revision records the dataset version, complete accepted-sample manifest SHA-256, `split_seed=42`, `split_algorithm=group-stratified-v1`, source-group assignments, class counts, and creation time. Splitting operates on `source_group_id`, not individual images, and performs deterministic group-aware stratification over the full accepted set for that revision.
+
+When `public-external-v0.2` is created, regenerate train, validation, and test assignments from all accepted images. The `v0.1` assignments become inactive for B1 but remain archived and hash-addressable with the B0 run. B0 and B1 metrics are not presented as a direct longitudinal improvement because their evaluation sets differ. A model-to-model comparison requires both checkpoints to be evaluated against a separately frozen common benchmark revision.
+
 ## Training Design
 
 ### Hardware Preflight
 
 Before each training stage, record the PyTorch build, CUDA availability, visible device count, selected device, available GPU memory when applicable, CPU model, and calibration-run duration.
 
-Use CUDA device `0` when `torch.cuda.is_available()` is true and the installed PyTorch/Ultralytics stack can complete a one-batch train and validation probe. Otherwise use CPU as an explicit fallback. Keep `workers=0` as the reliable Windows baseline; a higher worker count may be selected only after a measured loader probe completes without process-spawn or DLL errors.
+Use CUDA device `0` when `torch.cuda.is_available()` is true and the installed PyTorch/Ultralytics stack can complete a one-batch train and validation probe. Stage A and Stage B0 use CPU as an explicit fallback; Stage B1 does not. Keep `workers=0` as the reliable Windows baseline; a higher worker count may be selected only after a measured loader probe completes without process-spawn or DLL errors.
 
 Run a three-epoch calibration with the target image size and batch before a longer CPU job. Estimate the full run from measured wall-clock time. If the projected local run exceeds two hours, stop after calibration and emit the verified GPU command instead of automatically starting the long run. When the same configuration continues locally, resume from the calibration checkpoint so those three epochs are not repeated.
 
@@ -169,7 +179,15 @@ The 50-epoch public external experiment remains blocked until all of these addit
 - at least 10 test boxes for every represented class included in metric interpretation;
 - no source group, original image, derived crop, or adjacent-frame leakage across splits.
 
-When the gates pass, train from official `yolov8n.pt` at image size 640, 50 epochs, patience 10, batch 4, workers 0, deterministic seed 42, and the hardware-preflight-selected device. Always report image and box denominators beside overall and per-class precision, recall, mAP50, and mAP50-95. If the test split contains at least 30 independent source groups, add a 95% grouped-bootstrap interval using 1,000 resamples over source groups. With fewer than 30 test source groups, omit the interval and retain the insufficient-statistical-evidence warning. A class with no test instances is reported as having no evidence, not as a measured zero or success. Public-data metrics remain non-production evidence and the checkpoint remains non-deployable.
+When the gates pass and the CUDA probe succeeds, train from official `yolov8n.pt` at image size 640, 50 epochs, patience 10, batch 4, workers 0, deterministic seed 42, and CUDA device `0`. CPU execution is not an automatic B1 fallback. If the CUDA probe fails, skip B1 and publish the resource assessment report as expected behavior.
+
+Always report image and box denominators beside overall and per-class precision, recall, mAP50, and mAP50-95. If the test split contains at least 30 independent source groups, add a 95% grouped-bootstrap interval using 1,000 resamples. The resampling unit must be `source_group_id`, never `image_id`: a sampled group contributes all of its test images as one block, and an unsampled group contributes none. With fewer than 30 test source groups, omit the interval and retain the insufficient-statistical-evidence warning. Public-data metrics remain non-production evidence and the checkpoint remains non-deployable.
+
+### Empty-Class Metric Policy
+
+Ultralytics `8.4.120` computes detection AP over `np.unique(target_cls)`, so its native aggregate already excludes configured classes that have no ground-truth instances. Do not patch third-party `val.py`. Add a repository-owned evaluation wrapper that uses `nt_per_class` and `ap_class_index` to emit both the unchanged native aggregate and an explicit `observed_class_mAP` over classes with `total_gt > 0`. Report every configured empty class with metric value `null` and status `no_evidence`.
+
+The report footnote must state: **mAP is computed over classes with nonzero ground-truth instances only.** A version-pinned regression test must use seven configured classes with GT in only two classes and prove that the five empty classes are excluded from `observed_class_mAP`. If a later Ultralytics release changes its native behavior, the wrapper remains the reporting authority and the native/wrapper difference is recorded.
 
 ### Stage C: Future Formal Four-Light Training
 
@@ -182,11 +200,14 @@ Formal training remains gated on 100 to 200 same-camera sample groups, reviewed 
 - Treat a checkpoint smaller than 1 MiB, missing its recorded official-asset baseline, or differing from the recorded content length or SHA-256 as a hard failure.
 - Store permitted offline artifacts outside Git with an artifact manifest containing source URL, source version, retrieval date, license snapshot or license URL, content length, and SHA-256. A cached artifact is usable only when its hash matches the manifest and its recorded license permits the retained copy.
 - When an upstream source disappears, use a matching verified permitted cache. If no such cache exists, mark that source unavailable and select another already-approved source as a new dataset revision; never present the replacement as the missing version.
+- Recheck the upstream license before publishing a new dataset revision or starting a new training run. Record the retrieved license text or file hash so the acquisition-time terms remain auditable.
+- If current upstream terms become more restrictive, a takedown request appears, or provenance is disputed, immediately quarantine the affected cache and block new use pending license review. Do not automatically delete an artifact solely because a web page changed: delete it only when the recorded terms, a confirmed contractual obligation, or an approved takedown process requires deletion, and record the deletion event in the artifact manifest.
 - Quarantine sources with unknown licenses or unavailable attribution details.
 - Quarantine ambiguous labels instead of guessing.
 - Stop dataset publication when duplicate, split-leakage, class-order, coordinate, or provenance checks fail.
 - Do not start Stage B0 when fewer than 20 images pass review or fewer than two classes have accepted evidence.
 - Do not start Stage B1 until its image, class, train-box, and test-box gates all pass.
+- Treat a missing compatible CUDA environment as an expected B1 skip with a resource report, not a retry loop or pipeline failure.
 - Preserve failed-run logs separately and never overwrite a validated run.
 
 ## Outputs and Acceptance
@@ -195,7 +216,7 @@ Stage A is accepted when the official checkpoint is verified, 30 training epochs
 
 Stage B0 is accepted when provenance and quality gates pass, all three splits are nonempty and leakage-free, calibration and workflow rehearsal complete within the resource gate, test evaluation completes, the warning is present, and the same artifact set is available. Acceptance proves only a reproducible public-data workflow.
 
-Stage B1 is accepted only when its stronger sample gates pass, training and test evaluation complete, and variability or confidence reporting accompanies interpreted metrics. Acceptance still does not prove suitability for production.
+Stage B1 has two valid terminal statuses. `executed` requires its stronger sample gates, a successful CUDA probe, completed training and test evaluation, and the required variability or confidence reporting. `skipped_resource` requires a failed CUDA probe and a completed resource assessment report. Neither status proves suitability for production.
 
 No public checkpoint may generate formal deployable metadata, activate automatic PASS decisions, or support production performance claims.
 
@@ -207,12 +228,17 @@ Implementation verification must include:
 - provenance-schema and quarantine tests;
 - class-order and annotation validation tests;
 - exact-duplicate and source-group leakage tests;
+- dataset-version, full-set split-regeneration, deterministic-seed, and archived-assignment tests;
 - model download verification;
 - public smoke dataset validation;
 - public external preflight and dataset report;
 - Stage A test evaluation;
 - Stage B0 resource calibration and test evaluation when its workflow gate is satisfied;
 - Stage B1 sample-gate audit and test evaluation only when its stronger metric gate is satisfied;
+- a seven-class/two-GT-class regression test for empty-class `null` reporting and `observed_class_mAP`;
+- a grouped-bootstrap test proving that all images from a sampled `source_group_id` move as one block;
+- a CUDA-unavailable test proving Stage B1 exits as an expected resource skip;
+- a license-change test proving the cache is quarantined before any deletion decision;
 - a repository secret scan and clean Git status before push.
 
 ## Repository Delivery
