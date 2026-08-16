@@ -120,7 +120,7 @@ def run_calibrated_stage(
     if selected.epochs > calibration_epochs:
         final_artifacts = train_only(
             selected,
-            epochs=selected.epochs,
+            epochs=selected.epochs - calibration_epochs,
             resume_from=calibration.last,
         )
     evaluate_best(selected, final_artifacts)

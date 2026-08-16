@@ -71,7 +71,7 @@ def _clock(values: tuple[float, ...]) -> Callable[[], float]:
     return lambda: next(iterator)
 
 
-def test_stage_a_calibrates_then_resumes_to_final_epoch_target(
+def test_stage_a_calibrates_then_continues_for_remaining_epochs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -92,7 +92,7 @@ def test_stage_a_calibrates_then_resumes_to_final_epoch_target(
         tmp_path / "stage-a.json",
     )
 
-    assert epochs_seen == [3, 30]
+    assert epochs_seen == [3, 27]
     assert resumes_seen[0] is None
     assert resumes_seen[1] is not None
     assert report.status == "executed"

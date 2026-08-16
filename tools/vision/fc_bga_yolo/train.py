@@ -409,8 +409,6 @@ def train_only(
     kwargs = build_train_kwargs(runtime_settings)
     if epochs is not None:
         kwargs["epochs"] = epochs
-    if resume_from is not None:
-        kwargs["resume"] = str(resume_from)
     results = model.train(**kwargs)
     save_dir = Path(results.save_dir)
     best = save_dir / "weights" / "best.pt"

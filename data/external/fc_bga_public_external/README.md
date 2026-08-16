@@ -26,3 +26,11 @@ python tools/vision/fc_bga_yolo/public_external_revision.py --manifest data/exte
 ```
 
 Every new accepted set creates a new version and regenerates all source-group-safe splits. License changes quarantine the affected cache and block new use. Deletion occurs only when recorded terms, a confirmed contractual obligation, or an approved takedown process requires it.
+
+## Current Gate Status (2026-08-17)
+
+The pinned Roboflow source produced 73 source-image entries. Exact SHA-256 deduplication retained 56 unique review candidates and removed 17 duplicates. The candidate audit reports zero structural errors, but all 56 images remain `review_required`: no seven-class boxes have completed native-resolution human review.
+
+Consequently, Stage B0 is `blocked_data` with zero accepted images and zero represented classes. `public-external-v0.1` has not been published and no B0 checkpoint exists. The local evidence files are `.test-tmp/public-external-candidate-audit.json` and `.test-tmp/public-external-b0-coverage-shortfall.json`.
+
+Stage B1 is also unavailable on this host by design. Its resource report is `skipped_resource` because PyTorch is CPU-only and no CUDA device is visible. Do not weaken annotations, map `NG/OK` into the seven-class contract, or copy public single-RGB images into the formal four-light dataset to bypass these gates.

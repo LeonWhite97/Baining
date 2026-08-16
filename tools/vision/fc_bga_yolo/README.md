@@ -93,9 +93,19 @@ python tools/vision/fc_bga_yolo/train.py --config tools/vision/fc_bga_yolo/confi
 python tools/vision/fc_bga_yolo/run_training_stage.py --stage A --config tools/vision/fc_bga_yolo/configs/train_smoke.yaml --report .test-tmp/training-runs/stage-a-resource-report.json
 ```
 
-Stage A starts from the hash-verified official `yolov8n.pt` baseline and uses 640 pixels, 30 total epochs, patience 10, batch 4, workers 0, and seed 42. The runner prefers CUDA device `0`; on CPU it measures three calibration epochs and resumes from `last.pt` only when the projected total remains within 7,200 seconds. A longer projection returns `skipped_runtime` with a GPU command instead of starting the remaining epochs.
+Stage A starts from the hash-verified official `yolov8n.pt` baseline and uses 640 pixels, 30 total epochs, patience 10, batch 4, workers 0, and seed 42. The runner prefers CUDA device `0`; on CPU it measures three calibration epochs and continues the remaining 27 epochs from the calibration `last.pt` weights only when the projected total remains within 7,200 seconds. Ultralytics marks a completed three-epoch checkpoint as non-resumable, so the continuation starts a fresh optimizer without repeating the first three weight-training epochs. A longer projection returns `skipped_runtime` with a GPU command instead of starting the remaining epochs.
 
 The dataset's `OK/NG` labels are separate from the formal seven-class contract. Smoke training validates its actual checkpoint names but never writes a deployable seven-class `model_metadata.json`. Its metrics are workflow evidence only and cannot support FC-BGA production claims.
+
+The 2026-08-17 CPU run completed with status `executed`. Three calibration epochs took 124.915 seconds and projected 30 epochs at 1,249.147 seconds. The independent test call covered 17 images and 292 `NG/OK` boxes, with diagnostic P=0.927, R=0.955, mAP50=0.957, and mAP50-95=0.767. The test images are derived from the same public validation source, so these values are not independent FC-BGA defect evidence and must not be compared with a future seven-class or four-light model.
+
+## Public External Seven-Class Rehearsal
+
+Use `train_public_external_b0.yaml` only with immutable `public-external-v0.1`, and `train_public_external_b1.yaml` only with `public-external-v0.2`. Preflight verifies the fixed seven-class order, revision stage/version, manifest and assignment hashes, and nonempty train/val/test splits. Public checkpoints cannot write deployable model metadata.
+
+The evaluation wrapper preserves the native Ultralytics aggregate, reports empty test classes as `null` with status `no_evidence`, and computes the reported aggregate over classes with nonzero GT only. B1 adds a 1,000-resample 95% interval only when the test set contains at least 30 independent `source_group_id` values; every resample moves all images in a group as one block.
+
+As of 2026-08-17, the licensed source queue contains 56 unique candidates but zero completed seven-class human reviews. B0 is `blocked_data`, no v0.1 revision or B0 checkpoint exists, and B1 is `skipped_resource` on the CPU-only host. See `data/external/fc_bga_public_external/README.md` for the exact gate evidence.
 
 For additional public substitute sources, use boundaries, and manual download commands, see `data/external/fc_bga_public_smoke/public_alternatives.md`.
 

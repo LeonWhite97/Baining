@@ -506,7 +506,7 @@ def test_training_rejects_best_checkpoint_with_reordered_classes(
         run_training(settings)
 
 
-def test_train_only_resumes_from_last_checkpoint_with_final_epoch_target(
+def test_train_only_continues_from_last_checkpoint_without_ultralytics_resume(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -534,13 +534,13 @@ def test_train_only_resumes_from_last_checkpoint_with_final_epoch_target(
     )
 
     calibration = train_only(settings, epochs=3)
-    resumed = train_only(settings, epochs=30, resume_from=calibration.last)
+    resumed = train_only(settings, epochs=27, resume_from=calibration.last)
 
     assert calibration.best.is_file() and calibration.last.is_file()
     assert resumed.best.is_file() and resumed.last.is_file()
     assert calls[1][0] == str(calibration.last)
-    assert calls[1][1]["resume"] == str(calibration.last)
-    assert calls[1][1]["epochs"] == 30
+    assert "resume" not in calls[1][1]
+    assert calls[1][1]["epochs"] == 27
 
 
 def test_run_training_preserves_best_path_after_independent_evaluation(
