@@ -116,8 +116,11 @@ The 110 candidates are reviewed by a human against the seven-class contract befo
 - **`data/external/fc_bga_public_external/review/ANNOTATION_SPEC.md`** — the seven-class annotation spec: definitions, visual decision criteria, the accept/quarantine flow, and the exact manifest fields to write back into `candidates.jsonl`.
 - **`tools/vision/fc_bga_yolo/review_progress.py`** — prints the review tally and the live B0 gate status (`--json` for machine-readable output).
 - **`tools/vision/fc_bga_yolo/build_review_artifacts.py`** — regenerates the git-ignored `contact_sheet.html` and `candidates.enriched.json` from the tracked `candidates.jsonl` + `images/` (run it after any manifest change).
+- **`tools/vision/fc_bga_yolo/build_b0_version.py`** — pre-checks the B0 gate from `candidates.jsonl` and, once ready, materializes `versions/public-external-v0.1/` (stratified train/val/test split + `data.yaml` + `revision.json`) by wrapping `public_external_revision.publish_revision`. Dry-run prints a readable checklist; `--publish` builds the immutable revision.
 
-Quick loop: open the contact sheet → annotate per the spec and write `review_status` / `accepted_classes` into `candidates.jsonl` → run `build_review_artifacts.py` → run `review_progress.py --json` to confirm B0 flips to unlocked (≥20 accepted images spanning ≥2 classes).
+Quick loop: open the contact sheet → annotate per the spec and write `review_status` / `accepted_classes` / `label_path` into `candidates.jsonl` → run `build_review_artifacts.py` → run `review_progress.py --json` to confirm B0 flips to unlocked (≥20 accepted images spanning ≥2 classes) → run `build_b0_version.py --publish` to materialize the versioned dataset for `train_public_external_b0.yaml`.
+
+> Note: the B0 gate requires **nonempty train/val/test** splits. The splitter keeps each `source_group_id` whole, so accept images spanning enough distinct source groups (the real candidates each form their own group) to avoid an empty `test` split.
 
 ## Formal Fine-tuning
 
