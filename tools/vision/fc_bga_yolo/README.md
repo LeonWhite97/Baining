@@ -109,6 +109,16 @@ As of 2026-08-17, the licensed source queue contains 110 unique candidates acros
 
 For additional public substitute sources, use boundaries, and manual download commands, see `data/external/fc_bga_public_smoke/public_alternatives.md`.
 
+### Public External Review Workflow (tooling)
+
+The 110 candidates are reviewed by a human against the seven-class contract before B0 can unlock. Three committed tools support this:
+
+- **`data/external/fc_bga_public_external/review/ANNOTATION_SPEC.md`** — the seven-class annotation spec: definitions, visual decision criteria, the accept/quarantine flow, and the exact manifest fields to write back into `candidates.jsonl`.
+- **`tools/vision/fc_bga_yolo/review_progress.py`** — prints the review tally and the live B0 gate status (`--json` for machine-readable output).
+- **`tools/vision/fc_bga_yolo/build_review_artifacts.py`** — regenerates the git-ignored `contact_sheet.html` and `candidates.enriched.json` from the tracked `candidates.jsonl` + `images/` (run it after any manifest change).
+
+Quick loop: open the contact sheet → annotate per the spec and write `review_status` / `accepted_classes` into `candidates.jsonl` → run `build_review_artifacts.py` → run `review_progress.py --json` to confirm B0 flips to unlocked (≥20 accepted images spanning ≥2 classes).
+
 ## Formal Fine-tuning
 
 Download the official starting weight and run preflight before GPU work:
