@@ -1,0 +1,34 @@
+# Makefile — public-external review -> B0 build pipeline entry points.
+#
+# Implementation lives in tools/vision/fc_bga_yolo/review-loop.sh (works in git-bash
+# with no extra installs). These targets delegate to it so there is a single source
+# of truth. Override the interpreter with: make status PYTHON=/path/to/python
+#
+# Quick start:
+#   make review      # refresh artifacts + show progress
+#   make b0-check    # B0 gate checklist (exit 1 while blocked — expected)
+#   make b0-publish  # materialize versions/public-external-v0.1/ when ready
+
+PYTHON ?= python
+LOOP := bash tools/vision/fc_bga_yolo/review-loop.sh
+
+.PHONY: review-artifacts review-progress review-status b0-check b0-publish review
+
+review-artifacts:
+	$(LOOP) artifacts
+
+review-progress:
+	$(LOOP) progress
+
+review-status:
+	$(LOOP) status
+
+b0-check:
+	$(LOOP) b0-check
+
+b0-publish:
+	$(LOOP) b0-publish
+
+## Full refresh + check loop (does NOT publish):
+review: review-artifacts review-status
+	@echo "==> artifacts refreshed, progress shown; run 'make b0-check' for the gate checklist"

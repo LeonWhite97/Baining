@@ -122,6 +122,20 @@ Quick loop: open the contact sheet → annotate per the spec and write `review_s
 
 > Note: the B0 gate requires **nonempty train/val/test** splits. The splitter keeps each `source_group_id` whole, so accept images spanning enough distinct source groups (the real candidates each form their own group) to avoid an empty `test` split.
 
+#### Single-command entry points
+
+The whole refresh→check→publish loop is wired into the repo-root `Makefile` (delegating to `tools/vision/fc_bga_yolo/review-loop.sh`, which runs in git-bash with no extra installs):
+
+```bash
+make review       # refresh artifacts + show progress (JSON)
+make b0-check     # B0 gate checklist (exits 1 while blocked — expected)
+make b0-publish   # materialize versions/public-external-v0.1/ once ready
+# or, without make:
+bash tools/vision/fc_bga_yolo/review-loop.sh all     # artifacts -> status -> b0-check
+```
+
+Override the interpreter with `make b0-check PYTHON=/path/to/python` (defaults to `python` on `PATH`).
+
 ## Formal Fine-tuning
 
 Download the official starting weight and run preflight before GPU work:
