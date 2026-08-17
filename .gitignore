@@ -23,6 +23,12 @@ runs/
 data/external/fc_bga_public_smoke/downloads/
 data/external/fc_bga_public_external/cache/
 data/external/fc_bga_public_external/review/
+!data/external/fc_bga_public_external/review/
+data/external/fc_bga_public_external/review/*
+!data/external/fc_bga_public_external/review/candidates.jsonl
+!data/external/fc_bga_public_external/review/images/
+data/external/fc_bga_public_external/review/images/*
+!data/external/fc_bga_public_external/review/images/*.jpg
 data/external/fc_bga_public_external/versions/
 data/vision/fc_bga_defects/**/images/*
 data/vision/fc_bga_defects/**/labels/*

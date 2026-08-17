@@ -7,10 +7,12 @@ The fixed provisional annotation classes are `BALL_BRIDGE`, `MISSING_BALL`, `EXT
 Runtime layout:
 
 - `cache/`: permitted source downloads and license snapshots.
-- `review/images/`: exact-deduplicated candidates.
+- `review/images/`: exact-deduplicated, redistributable review candidates committed with attribution.
 - `review/candidates.jsonl`: provenance and manual review state.
 - `review/labels/`: provisional human-reviewed YOLO labels.
 - `versions/`: immutable generated train/val/test revisions.
+
+Redistribution details are recorded in `ATTRIBUTION.md`, `sources.json`, and `LICENSE-CC-BY-4.0.txt`. The committed images are review inputs, not approved seven-class training labels and not four-light production evidence.
 
 Prepare a review queue from the pinned public smoke download:
 
@@ -30,6 +32,8 @@ Every new accepted set creates a new version and regenerates all source-group-sa
 ## Current Gate Status (2026-08-17)
 
 The pinned Roboflow source produced 73 source-image entries. Exact SHA-256 deduplication retained 56 unique review candidates and removed 17 duplicates. The candidate audit reports zero structural errors, but all 56 images remain `review_required`: no seven-class boxes have completed native-resolution human review.
+
+All 56 retained candidates are 300 x 300 RGB JPEGs. A contact-sheet review confirmed BGA ball-array content, but the limited resolution and framing do not support bulk conversion into auditable seven-class labels. The images and SHA-256 manifest are committed only so reviewers can inspect the same immutable candidate set.
 
 Consequently, Stage B0 is `blocked_data` with zero accepted images and zero represented classes. `public-external-v0.1` has not been published and no B0 checkpoint exists. The local evidence files are `.test-tmp/public-external-candidate-audit.json` and `.test-tmp/public-external-b0-coverage-shortfall.json`.
 

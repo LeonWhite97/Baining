@@ -57,7 +57,7 @@ Each candidate image must have a provenance record containing:
 
 Images with unknown reuse terms, unreadable defects, unresolved duplicates, conflicting labels, or insufficient context remain quarantined and never enter training.
 
-Downloaded images, checkpoints, and run outputs remain ignored by Git. The repository may commit source metadata, licenses, annotation records, configuration, reports, and reproducible commands when their upstream terms permit it. API keys must be read only from environment variables and must never be printed, persisted, or committed.
+Downloaded images remain ignored by default. A source-specific, exact-deduplicated review set may be committed only after the user explicitly authorizes redistribution and the repository includes source/version attribution, a verified license snapshot and hash, and per-image SHA-256 provenance. This exception applies to the Roboflow `paween/bga-ram-chips-detection-t3cqn` version 1 CC BY 4.0 review candidates authorized on 2026-08-17; it does not promote them to accepted seven-class or four-light evidence. Checkpoints and run outputs remain ignored by Git. API keys must be read only from environment variables and must never be printed, persisted, or committed.
 
 ## Annotation Contract
 

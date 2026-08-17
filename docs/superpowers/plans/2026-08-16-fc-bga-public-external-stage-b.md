@@ -723,7 +723,7 @@ git add data/external/fc_bga_public_external/README.md tools/vision/fc_bga_yolo/
 git commit -m "docs: record public FC-BGA rehearsal evidence"
 ```
 
-Do not add downloaded images, labels whose redistribution is not permitted, versions, checkpoints, or run directories.
+Do not add downloaded images by default. For the user-authorized Roboflow `paween/bga-ram-chips-detection-t3cqn` version 1 CC BY 4.0 exception dated 2026-08-17, add only the 56 exact-deduplicated `review/images/*.jpg` candidates, `review/candidates.jsonl`, attribution, and the verified license snapshot. Keep labels without verified redistribution permission, dataset versions, checkpoints, and run directories untracked.
 
 ---
 
