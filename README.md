@@ -15,7 +15,6 @@ The FC-BGA YOLOv8 toolkit is designed for a portfolio/internal PoC. Ultralytics 
 - `services/agent-rag`: failure-isolated analysis service.
 - `services/simulator`: repeatable end-to-end workflow simulator.
 - `tools/vision/fc_bga_yolo`: FC-BGA data, training, prediction, validation, deduplication, and export tools.
-- `docs/PIS-IN_AOI_AI智能质检_V3.5_项目总说明书.md`: factual system boundary and delivery index.
 - `docs/superpowers/specs/2026-08-15-fc-bga-yolo-training-design.md`: approved FC-BGA design.
 - `tools/vision/fc_bga_yolo/README.md`: fine-tuning, export, and shadow-runtime commands.
 
