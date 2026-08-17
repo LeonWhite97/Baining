@@ -44,6 +44,7 @@ python tools/vision/fc_bga_yolo/train.py --config tools/vision/fc_bga_yolo/confi
 - URL: https://universe.roboflow.com/kenshin-blirtz/bga-balls-3ihxj
 - Declared purpose here: `segmentation_reference`
 - Notes: Use for solder-ball appearance study and annotation convention rehearsal. Do not merge it into the formal seven-class FC-BGA detector without a separate conversion design and license review.
+- Status (2026-08-17): Downloaded as `BGA-Balls.v2i.yolov8.zip`, extracted to `data/external/fc_bga_public_smoke/downloads/bga-balls-3ihxj-v2/`, and processed into 54 unique review candidates under `data/external/fc_bga_public_external/review/`. Registered as source `roboflow-kenshin-bga-balls-v2` in the public external source registry. All 54 candidates remain `review_required`.
 
 Suggested manual handling:
 

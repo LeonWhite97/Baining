@@ -105,7 +105,7 @@ Use `train_public_external_b0.yaml` only with immutable `public-external-v0.1`, 
 
 The evaluation wrapper preserves the native Ultralytics aggregate, reports empty test classes as `null` with status `no_evidence`, and computes the reported aggregate over classes with nonzero GT only. B1 adds a 1,000-resample 95% interval only when the test set contains at least 30 independent `source_group_id` values; every resample moves all images in a group as one block.
 
-As of 2026-08-17, the licensed source queue contains 56 unique candidates but zero completed seven-class human reviews. B0 is `blocked_data`, no v0.1 revision or B0 checkpoint exists, and B1 is `skipped_resource` on the CPU-only host. See `data/external/fc_bga_public_external/README.md` for the exact gate evidence.
+As of 2026-08-17, the licensed source queue contains 110 unique candidates across two Roboflow sources (56 from BGA RAM Chips Detection at 300 x 300, 54 from BGA-Balls at 640 x 640) but zero completed seven-class human reviews. B0 is `blocked_data`, no v0.1 revision or B0 checkpoint exists, and B1 is `skipped_resource` on the CPU-only host. See `data/external/fc_bga_public_external/README.md` for the exact gate evidence.
 
 For additional public substitute sources, use boundaries, and manual download commands, see `data/external/fc_bga_public_smoke/public_alternatives.md`.
 

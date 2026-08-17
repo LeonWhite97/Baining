@@ -9,5 +9,16 @@
     "license_sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411",
     "retrieved_at": "2026-08-16T00:00:00Z",
     "attribution": "BGA RAM Chips Detection by paween, licensed CC BY 4.0"
+  },
+  {
+    "source_id": "roboflow-kenshin-bga-balls-v2",
+    "name": "BGA-Balls",
+    "url": "https://universe.roboflow.com/kenshin-blirtz/bga-balls-3ihxj",
+    "version": "2",
+    "license_name": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/legalcode.txt",
+    "license_sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411",
+    "retrieved_at": "2026-08-17T00:00:00Z",
+    "attribution": "BGA-Balls by kenshin-blirtz, licensed CC BY 4.0"
   }
 ]
