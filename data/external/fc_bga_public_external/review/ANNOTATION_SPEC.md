@@ -118,17 +118,47 @@ B0 只要求"已接受图像 + 类覆盖度"，不要求框。
 
 ## 4. 如何落盘（写入 candidates.jsonl）
 
-每条记录需维护两个字段：
+每条记录需维护以下字段：
 
 | 字段 | 取值 | 说明 |
 |------|------|------|
 | `review_status` | `review_required` \| `accepted` \| `quarantined` | 初审后必须改写 |
 | `accepted_classes` | 七类名的元组，如 `("MISSING_BALL",)` 或 `()` | 仅 `accepted` 时有意义 |
+| `label_path` | 如 `"labels/public-xxxxxxxxxxxxxxxx.txt"` | **accepted 且要训练的样本必须填**；文件放在 `review/labels/` |
 | `quarantine_reason` | 字符串，如 `UNREADABLE` / `DEFECT_UNCLEAR` / `LICENSE_AMBIGUOUS` | 仅 `quarantined` 时填写 |
 
 > 字段名与类型以 `tools/vision/fc_bga_yolo/public_external_manifest.py`
 > 的 `CandidateRecord` 为准。批量修改建议写一个小脚本读取→改→写回，
 > 避免手改 JSONL 破坏格式。
+
+### 4.1 边界框标签文件（B0 训练必需）
+
+B0 门控不仅数图像数，还会校验每个 accepted 样本的 YOLO 标签框
+（`evaluate_revision_gate` 逐条 `_validate_label`）。因此：
+
+- **位置**：`review/labels/{sample_id}.txt`（与图像同名，`sample_id` 即 `public-xxxxxxxxxxxxxxxx`）；
+- **格式**：每框一行 `class_id cx cy w h`，坐标归一化到 [0,1]；
+- **类别索引必须按合同固定顺序**：
+
+| id | 类名 |
+|----|------|
+| 0 | BALL_BRIDGE |
+| 1 | MISSING_BALL |
+| 2 | EXTRA_BALL |
+| 3 | BALL_SIZE_ABNORMAL |
+| 4 | BALL_OFFSET |
+| 5 | BALL_SHAPE_ABNORMAL |
+| 6 | FOREIGN_MATERIAL |
+
+- 良品（`accepted_classes = ()`）不需要标签文件，`label_path` 留 `null` 即可。
+
+### 4.2 推荐标注工具
+
+- **LabelImg**（本地轻量）：`pip install labelImg`；把上表 7 个类名按顺序写入 `classes.txt`，打开 `review/images/`，保存格式选 YOLO，输出目录设为 `review/labels/`。
+- **makesense.ai**（零安装网页）：上传 `review/images/` 里的图，按顺序添加 7 个标签，导出 YOLO txt 后放入 `review/labels/`。
+- **Label Studio**（功能最全）：`pip install label-studio`，建 Object Detection 项目，导出选 YOLO。
+
+任选其一；关键是**类别顺序严格一致**、文件名与 `sample_id` 对应。
 
 ---
 

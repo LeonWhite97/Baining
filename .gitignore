@@ -29,6 +29,9 @@ data/external/fc_bga_public_external/review/*
 !data/external/fc_bga_public_external/review/images/
 data/external/fc_bga_public_external/review/images/*
 !data/external/fc_bga_public_external/review/images/*.jpg
+!data/external/fc_bga_public_external/review/labels/
+data/external/fc_bga_public_external/review/labels/*
+!data/external/fc_bga_public_external/review/labels/*.txt
 data/external/fc_bga_public_external/versions/
 data/vision/fc_bga_defects/**/images/*
 data/vision/fc_bga_defects/**/labels/*
