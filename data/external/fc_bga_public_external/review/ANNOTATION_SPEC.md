@@ -128,8 +128,11 @@ B0 只要求"已接受图像 + 类覆盖度"，不要求框。
 | `quarantine_reason` | 字符串，如 `UNREADABLE` / `DEFECT_UNCLEAR` / `LICENSE_AMBIGUOUS` | 仅 `quarantined` 时填写 |
 
 > 字段名与类型以 `tools/vision/fc_bga_yolo/public_external_manifest.py`
-> 的 `CandidateRecord` 为准。批量修改建议写一个小脚本读取→改→写回，
-> 避免手改 JSONL 破坏格式。
+> 的 `CandidateRecord` 为准。**不要手改 JSONL**——用
+> `tools/vision/fc_bga_yolo/apply_review_labels.py` 把标注工具导出的
+> `{sample_id}.txt` 一键落盘（自动校验框、推导 `accepted_classes`、写
+> `label_path` 并把标签复制到 `review/labels/`）。手改只用于 `quarantined`
+> 这类工具无法表达的状态。
 
 ### 4.1 边界框标签文件（B0 训练必需）
 

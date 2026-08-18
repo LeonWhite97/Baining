@@ -117,8 +117,9 @@ The 110 candidates are reviewed by a human against the seven-class contract befo
 - **`tools/vision/fc_bga_yolo/review_progress.py`** — prints the review tally and the live B0 gate status (`--json` for machine-readable output).
 - **`tools/vision/fc_bga_yolo/build_review_artifacts.py`** — regenerates the git-ignored `contact_sheet.html` and `candidates.enriched.json` from the tracked `candidates.jsonl` + `images/` (run it after any manifest change).
 - **`tools/vision/fc_bga_yolo/build_b0_version.py`** — pre-checks the B0 gate from `candidates.jsonl` and, once ready, materializes `versions/public-external-v0.1/` (stratified train/val/test split + `data.yaml` + `revision.json`) by wrapping `public_external_revision.publish_revision`. Dry-run prints a readable checklist; `--publish` builds the immutable revision.
+- **`tools/vision/fc_bga_yolo/apply_review_labels.py`** — applies YOLO label files exported from an annotation tool (`{sample_id}.txt`) back into `candidates.jsonl`: validates each box, derives `accepted_classes` in canonical order, sets `review_status`/`annotation_status`/`label_path`, and copies labels into the git-tracked `review/labels/`. Use it instead of hand-editing the manifest. Optional `--class-map` remaps a tool's class order; `--dry-run` previews; `candidates.jsonl.bak` is written before any overwrite.
 
-Quick loop: open the contact sheet → annotate per the spec and write `review_status` / `accepted_classes` / `label_path` into `candidates.jsonl` → run `build_review_artifacts.py` → run `review_progress.py --json` to confirm B0 flips to unlocked (≥20 accepted images spanning ≥2 classes) → run `build_b0_version.py --publish` to materialize the versioned dataset for `train_public_external_b0.yaml`.
+Quick loop: open the contact sheet → draw boxes in an annotation tool and export YOLO `.txt` to a folder → run `apply_review_labels.py --label-dir <export-folder>` (or `make apply LABEL_DIR=<export-folder>`) → run `review_progress.py --json` to confirm B0 flips to unlocked (≥20 accepted images spanning ≥2 classes) → run `build_b0_version.py --publish` to materialize the versioned dataset for `train_public_external_b0.yaml`.
 
 > Note: the B0 gate requires **nonempty train/val/test** splits. The splitter keeps each `source_group_id` whole, so accept images spanning enough distinct source groups (the real candidates each form their own group) to avoid an empty `test` split.
 
@@ -132,6 +133,7 @@ make b0-check     # B0 gate checklist (exits 1 while blocked — expected)
 make b0-publish   # materialize versions/public-external-v0.1/ once ready
 # or, without make:
 bash tools/vision/fc_bga_yolo/review-loop.sh all     # artifacts -> status -> b0-check
+bash tools/vision/fc_bga_yolo/review-loop.sh apply --label-dir <export-folder> [--class-map map.json] [--dry-run]
 ```
 
 Override the interpreter with `make b0-check PYTHON=/path/to/python` (defaults to `python` on `PATH`).

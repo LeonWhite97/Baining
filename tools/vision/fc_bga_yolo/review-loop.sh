@@ -8,6 +8,8 @@
 #   artifacts   regenerate git-ignored contact_sheet.html + candidates.enriched.json
 #   progress    print the review tally + B0 gate (text)
 #   status      same as progress but machine-readable JSON
+#   apply       apply exported YOLO label files into candidates.jsonl
+#               (args: --label-dir <dir> [--class-map map.json] [--dry-run])
 #   b0-check    dry-run the B0 gate checklist (exit 1 while blocked — expected)
 #   b0-publish  materialize versions/public-external-v0.1/ once the gate is ready
 #   all         artifacts -> status -> b0-check  (the full refresh + check loop)
@@ -30,6 +32,7 @@ shift || true
 
 run_artifacts() { "$PYTHON" "$TOOL/build_review_artifacts.py" "$@"; }
 run_progress()  { "$PYTHON" "$TOOL/review_progress.py" "$@"; }
+run_apply()     { "$PYTHON" "$TOOL/apply_review_labels.py" "$@"; }
 run_b0()        { "$PYTHON" "$TOOL/build_b0_version.py" "$@"; }
 
 case "$cmd" in
@@ -41,6 +44,9 @@ case "$cmd" in
     ;;
   status)
     run_progress --json
+    ;;
+  apply)
+    run_apply "$@"
     ;;
   b0-check)
     run_b0
