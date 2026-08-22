@@ -6,6 +6,7 @@ dependencies = ["fastapi>=0.115,<1", "uvicorn[standard]>=0.34,<1", "pydantic>=2.
 
 [project.optional-dependencies]
 test = ["pytest>=8,<9", "httpx>=0.28,<1"]
+local-milvus = ["pymilvus>=2.5,<3", "milvus-lite>=2.4,<4"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
